@@ -1,4 +1,4 @@
-# Proto/schemas/extraction.py
+# schemas/extraction.py
 
 from enum import Enum
 from typing import Optional, Literal

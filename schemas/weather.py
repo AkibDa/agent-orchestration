@@ -1,4 +1,4 @@
-# Proto/schemas/weather.py
+# schemas/weather.py
 
 from datetime import datetime
 from typing import Optional

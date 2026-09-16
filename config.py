@@ -1,4 +1,4 @@
-# Proto/config.py
+# config.py
 import os
 
 IMD_ENABLED = os.environ.get("IMD_ENABLED", "false").lower() in ("true", "1", "yes")
