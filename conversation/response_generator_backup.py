@@ -1,0 +1,404 @@
+# Proto/conversation/response_generator.py
+
+from typing import Dict, Any
+
+RESPONSE_TEMPLATES = {
+    "OPTIMAL_FISHING_VOYAGE": {
+        "en": "Recommended fishing voyage! High potential fishing zone identified (probability {pfz_prob_pct}%) with safe ocean and weather conditions.",
+        "bn": "মাছ ধরার জন্য উপযুক্ত সময়! উচ্চ সম্ভাবনাময় মাছের এলাকা (সম্ভাবনা {pfz_prob_pct}%) চিহ্নিত করা হয়েছে, আবহাওয়া ও সমুদ্র পরিস্থিতি সম্পূর্ণ নিরাপদ।",
+        "bn_en": "Mach dhorar jonno khub bhalo shomoy! High probability fishing zone (probability {pfz_prob_pct}%) pawa geche, abohawa aar shomudro shompurno safe.",
+        "hi-Latn": "Recommended fishing voyage! High potential fishing zone mil gaya (probability {pfz_prob_pct}%), aur ocean aur weather conditions safe hain."
+    },
+    "LIMITED_COASTAL_FISHING": {
+        "en": "Proceed with caution. Potential fishing zone detected (probability {pfz_prob_pct}%), but safety conditions require caution. Stay near shore (<10 km).",
+        "bn": "সতর্কতার সাথে যান। মাছের এলাকা (সম্ভাবনা {pfz_prob_pct}%) পাওয়া গেছে, তবে নিরাপত্তা সতর্কতা রয়েছে। উপকূলের ১০ কিমির মধ্যে থাকুন।",
+        "bn_en": "Shotorkotar shathe jaan. Macher area (probability {pfz_prob_pct}%) pawa geche, kintu safety warning ache. Upokuler 10 km er moddhe thakun.",
+        "hi-Latn": "Dhyan se aage badhein. Potential fishing zone detect hua hai (probability {pfz_prob_pct}%), par safety conditions mein caution zaroori hai. Kinare ke paas rahein (<10 km)."
+    },
+    "CLEAR_WEATHER_LOW_YIELD": {
+        "en": "Favorable weather for navigation, but current ocean features do not indicate dense fish aggregation at this location.",
+        "bn": "সমুদ্র ও আবহাওয়া নিরাপদ, তবে এই স্থানে প্রচুর মাছের উপস্থিতি পাওয়া যায়নি।",
+        "bn_en": "Shomudro ebong abohawa safe, kintu ei jaigay bhalo macher khobor pawa jayni.",
+        "hi-Latn": "Mausam aur samundar navigation ke liye theek hai, lekin yahan machliyon ki zyada ummeed nahi hai."
+    },
+    "EXERCISE_CAUTION": {
+        "en": "Exercise caution at sea. {recommendation_text}",
+        "bn": "সমুদ্রে সতর্ক থাকুন। {recommendation_text}",
+        "bn_en": "Shomudre shotorko thakun. {recommendation_text}",
+        "hi-Latn": "Samundar mein dhyan rakhein. {recommendation_text}"
+    },
+    "CANCEL_VOYAGE": {
+        "en": "DANGER / DO NOT EMBARK: {recommendation_text}",
+        "bn": "বিপদ / যাত্রা বাতিল করুন: {recommendation_text}",
+        "bn_en": "BIPOD / Jatra batil korun: {recommendation_text}",
+        "hi-Latn": "KHATRA / TRIP CANCEL KAREIN: {recommendation_text}"
+    },
+    "LIMITED / INSUFFICIENT_DATA": {
+        "en": "WARNING: Insufficient official marine data available at this time to guarantee safety. {recommendation_text}",
+        "bn": "সতর্কতা: সমুদ্রের নিরাপত্তা নিশ্চিত করার জন্য পর্যাপ্ত তথ্য নেই। {recommendation_text}",
+        "bn_en": "WARNING: Sea safety confirm korar jonno porjapto data nei. {recommendation_text}",
+        "hi-Latn": "WARNING: Samundar ki safety confirm karne ke liye data poora nahi hai. {recommendation_text}"
+    },
+    "DISTANCE_TO_COAST_RESULT": {
+        "en": "The nearest coastline/sea is approximately {dist_km:.1f} km away at {nearest_coast}.",
+        "bn": "নিকটবর্তী সমুদ্র/উপকূলের দূরত্ব প্রায় {dist_km:.1f} কিমি ({nearest_coast})।",
+        "bn_en": "Nearest sea/coastline distance ta lagbhag {dist_km:.1f} km ({nearest_coast}).",
+        "hi-Latn": "Sabse paas ki coastline ya samundar lagbhag {dist_km:.1f} km door hai ({nearest_coast})."
+    },
+    "COASTAL_STATE_LOCATION": {
+        "en": "This is a coastal region directly bordering the sea (0 km distance to coast).",
+        "bn": "এটি একটি উপকূলীয় অঞ্চল যা সরাসরি সমুদ্রের সাথে সংযুক্ত (দূরত্ব ০ কিমি)।",
+        "bn_en": "Eta holo ekta coastal region ta shorasori sea er sathe attached (distance 0 km).",
+        "hi-Latn": "Yeh ek coastal region hai jo seedhe samundar se juda hai (0 km distance to coast)."
+    },
+    "UNSUPPORTED_LOCATION": {
+        "en": "UNSUPPORTED LOCATION: Coordinate ({lat:.2f}°N, {lon:.2f}°E) is outside the supported Indian Ocean domain (5°N–25°N, 65°E–95°E). Model predictions are not available for this area.",
+        "bn": "অসমর্থিত এলাকা: নির্দিষ্ট অবস্থানটি ({lat:.2f}°N, {lon:.2f}°E) আমাদের সমর্থিত ভারত মহাসাগর অঞ্চলের (5°N–25°N, 65°E–95°E) বাইরে। এই এলাকার পূর্বাভাস পাওয়া যাবে না।",
+        "bn_en": "UNSUPPORTED LOCATION: Ei location ({lat:.2f}°N, {lon:.2f}°E) amader supported Indian Ocean domain (5°N–25°N, 65°E–95°E) er baire. Ei jaigar jonno forecast pawa jabe na.",
+        "hi-Latn": "UNSUPPORTED LOCATION: Yeh location ({lat:.2f}°N, {lon:.2f}°E) hamare supported Indian Ocean domain (5°N–25°N, 65°E–95°E) ke bahar hai. Is area ke liye forecast available nahi hai."
+    },
+    "NEEDS_CLARIFICATION": {
+        "en": "Location clarification needed: Please specify a valid coastal location or port (e.g. Digha, Kochi, Chennai, Mumbai). Non-coastal or inland regions do not have direct ocean fishing access.",
+        "bn": "অবস্থান নির্দিষ্ট করুন: অনুগ্রহ করে একটি সঠিক উপকূলীয় অঞ্চল বা বন্দরের নাম বলুন (যেমন দীঘা, কোচি, চেন্নাই)। স্থলভাগের এলাকা থেকে সরাসরি সমুদ্রে মাছ ধরার সুযোগ নেই।",
+        "bn_en": "Location clarify kijiye: Samundar/ocean theke bhitorer region-e direct fishing access nei. Kripya ekta coastal location ba port-er naam bolo (jemon Digha ba Kochi).",
+        "hi-Latn": "Kripya coastal location ya port ka naam batayein (jaise Kochi, Digha, Chennai, Mumbai). Inland ya non-coastal areas mein direct ocean fishing possible nahi hai."
+    },
+    "TEMPORAL_PFZ_GUIDANCE": {
+        "en": "For tomorrow's fishing trip, use the PFZ information valid for tomorrow, not today's PFZ. Check tomorrow's weather and marine safety forecast before embarking.",
+        "bn": "আগামীকালের মাছ ধরার যাত্রার জন্য আজকের নয়, আগামীকালের PFZ পূর্বাভাস অনুসরণ করুন। রওনা হওয়ার আগে আগামীকালের আবহাওয়া ও সমুদ্র নিরাপত্তা দেখে নিন।",
+        "bn_en": "Kaler fishing trip er jonno ajker noy, kaler PFZ forecast follow korun. Jatra shuru korar age kaler weather ebong marine safety check kore nin.",
+        "hi-Latn": "Kal ke fishing trip ke liye aaj ka nahi, kal ka PFZ forecast follow karein. Safar shuru karne se pehle kal ka weather aur marine safety zaroor check kar lein."
+    },
+    "COMPARE_FISHING_REGIONS": {
+        "en": "{recommendation_text}",
+        "bn": "{recommendation_text}",
+        "bn_en": "{recommendation_text}",
+        "hi-Latn": "{recommendation_text}"
+    },
+    "FISHING_SAFETY_TRADEOFF": {
+        "en": "Safety always comes first. Even if the PFZ report shows fish aggregation, going out in unsafe sea conditions is not advisable. Wait for safe weather and sea conditions, then follow the PFZ advisory.",
+        "bn": "নিরাপত্তাই প্রথম। মাছের উপস্থিতি থাকলেও সমুদ্র অশান্ত হলে যাওয়া উচিত নয়। আবহাওয়া ও সমুদ্র নিরাপদ হওয়ার পর মাছ ধরতে যান।",
+        "bn_en": "Safety always comes first. PFZ report e mach thakleo jokhon sea unsafe, takhon jaoa uchit noy. Safe weather aar safe sea condition-e gele best result paben.",
+        "hi-Latn": "Safety sabse pehle. Agar PFZ report mein machli ho, phir bhi unsafe samundar mein jana theek nahi. Safe weather aur safe sea condition mein hi fishing ke liye jaayein."
+    },
+    "GENERAL_MARINE_QUERY": {
+        "en": "For general marine and fishing queries, please provide a specific coastal location or region so I can give you detailed safety and productivity information.",
+        "bn": "সাধারণ সমুদ্র ও মাছ ধরা সংক্রান্ত প্রশ্নের জন্য, অনুগ্রহ করে নির্দিষ্ট কোনো উপকূল বা অঞ্চলের নাম বলুন।",
+        "bn_en": "Samundro ba fishing niye general query-r jonno kripya ekta specific coastal location ba region-er naam bolun jate detailed safety information dite pari.",
+        "hi-Latn": "Samundar ya fishing se jude general sawaalon ke liye, kripya kisi coastal location ya region ka naam batayein taaki main detailed safety aur productivity information de sakun."
+    }
+}
+
+
+def generate_multilingual_response(recommendation_result: Dict[str, Any], language: str = "en", context: Dict[str, Any] = None) -> str:
+    """
+    Translates structured decision payloads into natural, fisherman-tailored responses
+    in English ('en'), Bengali ('bn'), or Bengalish ('bn_en'). Includes top-ranked candidate spots if available.
+    """
+    lang = language.lower()
+    if lang in ["bn-latn", "bn_en"]:
+        lang = "bn-Latn"
+    elif lang in ["hi-latn", "hi_en"]:
+        lang = "hi-Latn"
+    elif lang not in ["en", "bn"]:
+        lang = "en"
+
+    result_type = recommendation_result.get("result_type")
+    
+    # ---------------------------------------------------------
+    # Specialized Fast Path Formatters (No LLM, completely deterministic)
+    # ---------------------------------------------------------
+    if result_type == "HAZARD_RESULT" and context:
+        w_speed = recommendation_result.get("wind_speed_ms", "unknown")
+        w_height = recommendation_result.get("wave_height_m", "unknown")
+        
+        has_cyclone = recommendation_result.get("hazards", {}).get("cyclone", False)
+        has_lightning = recommendation_result.get("hazards", {}).get("lightning", False)
+        warnings = recommendation_result.get("hazards", {}).get("warnings", [])
+        
+        active_hazards = []
+        if has_cyclone: active_hazards.append("Cyclone")
+        if has_lightning: active_hazards.append("Lightning")
+        for w in warnings:
+            if isinstance(w, str) and w not in ["CYCLONE", "LIGHTNING"]:
+                active_hazards.append(w.replace("_", " ").title())
+                
+        is_safe = not active_hazards
+        hazard_str = ", ".join(active_hazards) if active_hazards else "None"
+        severity = "SEVERE" if has_cyclone or has_lightning else "MODERATE" if warnings else "NONE"
+        
+        loc_name = recommendation_result.get("location", {}).get("name", "Target location") if isinstance(recommendation_result.get("location"), dict) else "Target location"
+        
+        if is_safe:
+            if lang == "bn":
+                return f"{loc_name}: কোনো সক্রিয় সামুদ্রিক বিপদের সংকেত পাওয়া যায়নি। বর্তমানে বাতাসের গতি {w_speed} m/s এবং ঢেউয়ের উচ্চতা {w_height} m। এই পরিস্থিতি নিরাপদ।"
+            elif lang == "bn-Latn":
+                return f"{loc_name}: Kono active marine hazard detect hoyni. Ekhon wind speed {w_speed} m/s ar wave height {w_height} m. Conditions safe."
+            elif lang == "hi-Latn":
+                return f"{loc_name}: Koi active marine hazard detect nahi hua. Abhi wind speed {w_speed} m/s aur wave height {w_height} m hai. Conditions safe hain."
+            else:
+                return f"{loc_name}: No active marine hazards detected. Current wind is {w_speed} m/s and wave height is {w_height} m. Conditions are safe."
+        else:
+            if lang == "bn":
+                return f"{loc_name}: সতর্কতা! সক্রিয় বিপদের সংকেত: {hazard_str} (Severity: {severity})। বাতাসের গতি {w_speed} m/s এবং ঢেউয়ের উচ্চতা {w_height} m। সমুদ্রে যাওয়া অনিরাপদ।"
+            elif lang == "bn-Latn":
+                return f"{loc_name}: Alert! Active hazard: {hazard_str} (Severity: {severity}). Wind speed {w_speed} m/s ar wave height {w_height} m. Sea conditions unsafe."
+            elif lang == "hi-Latn":
+                return f"{loc_name}: Alert! Active hazard: {hazard_str} (Severity: {severity}). Wind speed {w_speed} m/s aur wave height {w_height} m hai. Samundar mein jana unsafe hai."
+            else:
+                return f"{loc_name}: Alert! Active hazards: {hazard_str} (Severity: {severity}). Current wind is {w_speed} m/s and wave height is {w_height} m. The sea is considered unsafe."
+
+    if result_type == "PFZ_RESULT" and context:
+        pfz_summary = recommendation_result.get("pfz_summary", {})
+        loc_name = recommendation_result.get("location", {}).get("name", "Target location") if isinstance(recommendation_result.get("location"), dict) else "Target location"
+        
+        if recommendation_result.get("found"):
+            cand = recommendation_result.get("candidate", {})
+            dist = cand.get("distance_km", "Unknown")
+            bearing = cand.get("bearing", "Unknown")
+            lat = cand.get("latitude", "Unknown")
+            lon = cand.get("longitude", "Unknown")
+            prob = cand.get("probability", 0) * 100
+            val = recommendation_result.get("validity_window", "48h")
+            
+            qualified = recommendation_result.get("qualified", False)
+            threshold = recommendation_result.get("decision_threshold", 0.85) * 100
+            
+            if qualified:
+                if lang == "bn":
+                    return f"{loc_name}-এর কাছাকাছি nearest PFZ: {loc_name} থেকে প্রায় {dist} km {bearing}-এ, location {lat}°N, {lon}°E। Estimated PFZ probability {prob:.0f}%, forecast validity {val}।"
+                elif lang == "bn-Latn":
+                    return f"{loc_name}-r kachakachi nearest PFZ: {loc_name} theke praye {dist} km {bearing}-e, location {lat}°N, {lon}°E. Estimated PFZ probability {prob:.0f}%, forecast validity {val}."
+                elif lang == "hi-Latn":
+                    return f"{loc_name} ke paas nearest PFZ: {loc_name} se lagbhag {dist} km {bearing}, location {lat}°N, {lon}°E. Estimated PFZ probability {prob:.0f}%, aur forecast {val} ke liye valid hai."
+                else:
+                    return f"Nearest PFZ near {loc_name}: approximately {dist} km {bearing} of {loc_name}, at {lat}°N, {lon}°E. Estimated PFZ probability is {prob:.0f}%, with a forecast validity of {val}."
+            else:
+                if lang == "bn":
+                    return f"{loc_name} থেকে প্রায় {dist} km {bearing}-এ একটি PFZ সিগন্যাল পাওয়া গেছে, কিন্তু এটি {threshold:.0f}% qualification threshold অতিক্রম করেনি (সম্ভাবনা {prob:.0f}%)।"
+                elif lang == "bn-Latn":
+                    return f"{loc_name} theke praye {dist} km {bearing}-e ekta PFZ signal pawa geche, kintu eta {threshold:.0f}% qualification threshold reach koreni (probability {prob:.0f}%)."
+                elif lang == "hi-Latn":
+                    return f"{loc_name} se lagbhag {dist} km {bearing} mein ek PFZ signal mila hai, par yeh {threshold:.0f}% qualification threshold tak nahi pohocha (probability {prob:.0f}%)."
+                else:
+                    return f"A PFZ signal was detected approximately {dist} km {bearing} of {loc_name}, but it did not reach the {threshold:.0f}% qualification threshold (probability {prob:.0f}%)."
+        else:
+            if lang == "bn":
+                return f"{loc_name}: কাছাকাছি কোনো সম্ভাব্য মাছের এলাকা (PFZ) পাওয়া যায়নি।"
+            elif lang == "bn-Latn":
+                return f"{loc_name}: Kachakachi kono Potential Fishing Zone (PFZ) pawa jayni."
+            elif lang == "hi-Latn":
+                return f"{loc_name}: Aas-paas koi Potential Fishing Zone (PFZ) nahi mila."
+            else:
+                return f"{loc_name}: No Potential Fishing Zone (PFZ) signal detected nearby."
+                
+    if result_type == "SAFETY_FORECAST_RESULT" and context:
+        clearance = recommendation_result.get("clearance", "UNKNOWN")
+        reason = recommendation_result.get("reason", "")
+        time_period = recommendation_result.get("time_period", "today")
+        w_speed = recommendation_result.get("wind_speed_ms", "unknown")
+        w_height = recommendation_result.get("wave_height_m", "unknown")
+        warnings = recommendation_result.get("warnings", [])
+        
+        warn_str = ", ".join(warnings) if warnings else "None"
+        
+        loc_name = recommendation_result.get("location", {}).get("name", "Target location") if isinstance(recommendation_result.get("location"), dict) else "Target location"
+        
+        if clearance in ["CLEARED", "CAUTION"]:
+            if lang == "bn":
+                return f"{loc_name}: {time_period} সমুদ্রযাত্রা {clearance}। কারণ: {reason}। Wind: {w_speed} m/s, Waves: {w_height} m, Warnings: {warn_str}।"
+            elif lang == "bn-Latn":
+                return f"{loc_name}: {time_period} voyage is {clearance}. Reason: {reason}. Wind: {w_speed} m/s, Waves: {w_height} m, Warnings: {warn_str}."
+            elif lang == "hi-Latn":
+                return f"{loc_name}: {time_period} safar ke liye condition {clearance} hai. Reason: {reason}. Wind: {w_speed} m/s, Waves: {w_height} m, Warnings: {warn_str}."
+            else:
+                return f"{loc_name}: {time_period} voyage is {clearance}. Reason: {reason}. Wind is {w_speed} m/s, Waves are {w_height} m. Active warnings: {warn_str}."
+        else:
+            if lang == "bn":
+                return f"{loc_name}: {time_period} সমুদ্রযাত্রা {clearance}। কারণ: {reason}। Wind: {w_speed} m/s, Waves: {w_height} m, Warnings: {warn_str}। যাত্রা বাতিল করার পরামর্শ দেওয়া হচ্ছে।"
+            elif lang == "bn-Latn":
+                return f"{loc_name}: {time_period} voyage is {clearance}. Reason: {reason}. Wind: {w_speed} m/s, Waves: {w_height} m, Warnings: {warn_str}. Jatra batil kora bhalo."
+            elif lang == "hi-Latn":
+                return f"{loc_name}: {time_period} safar ke liye condition {clearance} hai. Reason: {reason}. Wind: {w_speed} m/s, Waves: {w_height} m, Warnings: {warn_str}. Safar cancel karne ki salah di jati hai."
+            else:
+                return f"{loc_name}: {time_period} voyage is {clearance}. Reason: {reason}. Wind is {w_speed} m/s, Waves are {w_height} m. Active warnings: {warn_str}. It is highly recommended to cancel your voyage."
+
+    if result_type == "FISHING_IMPACT_RESULT" and context:
+        conds = recommendation_result.get("conditions", {})
+        w_speed = conds.get("wind_speed_ms")
+        sst = conds.get("sst_c")
+        loc_name = recommendation_result.get("location", {}).get("name", "Target location") if isinstance(recommendation_result.get("location"), dict) else "Target location"
+        
+        if sst is not None and w_speed is not None and sst != "unknown" and w_speed != "unknown":
+            if lang == "bn":
+                return f"এখানকার পরিবেশগত কারণে মাছ কম পাওয়া যেতে পারে। বর্তমানে SST {sst}°C এবং বাতাসের গতি {w_speed} m/s, যা কিছু প্রজাতির জন্য অনুকূল নয়।"
+            elif lang == "bn-Latn":
+                return f"Ekhankar poribeshgot karon mach kom pawa jete pare. Bortomane SST {sst}°C ebong batasher goti {w_speed} m/s ache, ja kichhu projatir jonno onukul noy."
+            elif lang == "hi-Latn":
+                return f"Yahan environmental conditions ki wajah se machhli kam mil sakti hai. Abhi SST {sst}°C aur wind speed {w_speed} m/s hai, jo kuch species ke liye theek nahi hai."
+            else:
+                return f"Environmental factors may be contributing to poor catch here. Current SST is {sst}°C and wind speed is {w_speed} m/s, which may be unfavourable for certain species."
+        
+    if result_type == "CONDITIONS_RESULT" and context:
+        conds = recommendation_result.get("conditions", {})
+        
+        # Extract fields
+        w_speed = conds.get("wind_speed_ms", "unknown")
+        w_dir = conds.get("wind_direction", "unknown")
+        w_height = conds.get("wave_height_m", "unknown")
+        w_period = conds.get("wave_period_s", "unknown")
+        sst = conds.get("sst_c", "unknown")
+        current_vel = conds.get("surface_current_ms", "unknown")
+        
+        temp = conds.get("temperature_c", "unknown")
+        cloud = conds.get("cloud_cover_pct", "unknown")
+        precip = conds.get("precipitation_m", "unknown")
+        
+        tide_status = conds.get("tide_status", "UNAVAILABLE")
+        tide = conds.get("tide")
+        
+        loc_name = recommendation_result.get("location", {}).get("name", "Target location") if isinstance(recommendation_result.get("location"), dict) else "Target location"
+        
+        if tide_status == "AVAILABLE" and tide:
+            t_phase = tide.get("current_phase", "unknown")
+            t_high_time = tide.get("next_high", {}).get("time", "unknown")
+            t_high_m = tide.get("next_high", {}).get("height_m", "unknown")
+            
+            tide_en = f"Tide: {t_phase}, with the next high tide at {t_high_time} at {t_high_m} m."
+            
+            # Map rising/falling to Bengali/Hindi terms
+            t_phase_bn = "jowar uthchhe" if "rising" in t_phase.lower() else ("bhata porchhe" if "falling" in t_phase.lower() else t_phase)
+            tide_bn = f"জোয়ার {t_phase_bn}, পরবর্তী হাই টাইড {t_high_time}-এ {t_high_m} m।"
+            tide_bn_en = f"{t_phase_bn}, porer high tide {t_high_time}-e, height {t_high_m} m."
+            
+            t_phase_hi = "badh raha" if "rising" in t_phase.lower() else ("ghat raha" if "falling" in t_phase.lower() else t_phase)
+            tide_hi = f"Tide {t_phase_hi} hai, next high tide {t_high_time} par {t_high_m} m."
+        else:
+            tide_en = "Tide data is currently unavailable."
+            tide_bn = "জোয়ারের তথ্য বর্তমানে উপলব্ধ নেই।"
+            tide_bn_en = "Tide data ekhon available nei."
+            tide_hi = "Tide data abhi available nahi hai."
+            
+        precip_str_en = "no precipitation" if precip == 0 or precip == 0.0 else f"{precip} m precipitation"
+        precip_str_bn_en = "brishti nei" if precip == 0 or precip == 0.0 else f"{precip} m brishti"
+        precip_str_hi = "barish nahi hai" if precip == 0 or precip == 0.0 else f"{precip} m barish"
+        
+        curr_str_en = "negligible" if current_vel == 0 or current_vel == 0.0 else f"{current_vel} m/s"
+        curr_str_bn_en = "khub kom" if current_vel == 0 or current_vel == 0.0 else f"{current_vel} m/s"
+        curr_str_hi = "negligible hai" if current_vel == 0 or current_vel == 0.0 else f"{current_vel} m/s hai"
+        
+        if lang == "bn-Latn":
+            return f"**{loc_name}-r kachhakachhi aaj samudrer obostha:** {tide_bn_en} Weather {temp}°C, cloud cover {cloud}%, {precip_str_bn_en}. Wind {w_speed} m/s, direction {w_dir}°. Wave {w_height} m, period {w_period} s. SST {sst}°C, surface current {curr_str_bn_en}."
+        elif lang == "hi-Latn":
+            return f"**{loc_name} ke paas aaj samundar ki haalat:** {tide_hi} Weather {temp}°C, cloud cover {cloud}%, {precip_str_hi}. Wind {w_speed} m/s, direction {w_dir}°. Wave {w_height} m, period {w_period} s. SST {sst}°C, surface current {curr_str_hi}."
+        else:
+            return f"**Marine conditions near {loc_name}:** {tide_en} Weather: {temp}°C, {cloud}% cloud cover, {precip_str_en}. Wind: {w_speed} m/s from {w_dir}°. Waves: {w_height} m, period {w_period} s. SST: {sst}°C, surface current {curr_str_en}."
+            
+    if result_type == "PRODUCTIVITY_RESULT":
+        loc_name = recommendation_result.get("reference_location", {}).get("name", "Target location")
+        regions = recommendation_result.get("regions", [])
+        
+        if not regions:
+            if lang == "bn" or lang == "bn-Latn":
+                return f"{loc_name}-r kachakachi kono productive region paowa jayni."
+            elif lang == "hi-Latn":
+                return f"{loc_name} ke paas koi productive region nahi mila."
+            else:
+                return f"No highly productive regions were found near {loc_name}."
+                
+        best_region = regions[0]
+        dist = best_region.get("distance_km", "unknown")
+        dir_str = best_region.get("direction", "unknown")
+        chlo = best_region.get("chlorophyll_mg_m3", "unknown")
+        sst = best_region.get("sst_c", "unknown")
+        
+        if lang == "bn" or lang == "bn-Latn":
+            return f"{loc_name}-r kachakachi sobcheye favourable region holo praye {dist} km {dir_str}-e, jekhane chlorophyll {chlo} mg/m³ ar SST {sst}°C."
+        elif lang == "hi-Latn":
+            return f"{loc_name} ke paas sabse favourable region lagbhag {dist} km {dir_str} mein hai, jahan chlorophyll {chlo} mg/m³ aur SST {sst}°C hai."
+        else:
+            return f"Near {loc_name}, the most favourable region is approximately {dist} km {dir_str}, with chlorophyll of {chlo} mg/m³ and SST of {sst}°C."
+
+    action_code = recommendation_result.get("decision", recommendation_result.get("action_code", "CLEAR_WEATHER_LOW_YIELD"))
+    pfz_summary = recommendation_result.get("pfz_summary", {})
+    pfz_prob = pfz_summary.get("pfz_probability")
+    if pfz_prob is None:
+        pfz_prob = 0.0
+    pfz_prob_pct = int(round(pfz_prob * 100))
+
+    raw_lat = recommendation_result.get("latitude")
+    if raw_lat is None:
+        raw_lat = recommendation_result.get("location", {}).get("latitude") if isinstance(recommendation_result.get("location"), dict) else None
+    lat = float(raw_lat) if raw_lat is not None else 12.48
+
+    raw_lon = recommendation_result.get("longitude")
+    if raw_lon is None:
+        raw_lon = recommendation_result.get("location", {}).get("longitude") if isinstance(recommendation_result.get("location"), dict) else None
+    lon = float(raw_lon) if raw_lon is not None else 74.40
+
+    # Handle geography distance to coast parameters
+    raw_dist = recommendation_result.get("distance_km")
+    if raw_dist is None:
+        raw_dist = recommendation_result.get("why", {}).get("distance_km", 0.0)
+    dist_km = float(raw_dist) if raw_dist is not None else 0.0
+
+    nearest_coast = recommendation_result.get("nearest_coast_name")
+    if not nearest_coast:
+        nearest_coast = recommendation_result.get("why", {}).get("nearest_coast_name", "Coast")
+
+    templates = RESPONSE_TEMPLATES.get(action_code, RESPONSE_TEMPLATES.get("CLEAR_WEATHER_LOW_YIELD"))
+    template_str = templates.get(lang, templates["en"])
+
+    try:
+        base_response = template_str.format(
+            pfz_prob_pct=pfz_prob_pct, lat=lat, lon=lon, dist_km=dist_km, nearest_coast=nearest_coast,
+            recommendation_text=recommendation_result.get("recommendation_text", "")
+        )
+    except Exception:
+        base_response = recommendation_result.get("recommendation_text", template_str)
+
+    # Append top-ranked fishing candidate spot information if candidate spots exist
+    ranked_spots = recommendation_result.get("ranked_candidate_spots", [])
+    if ranked_spots and action_code not in ["CANCEL_VOYAGE", "UNSUPPORTED_LOCATION", "NEEDS_CLARIFICATION"]:
+        spot_strings = []
+        for s in ranked_spots[:3]:
+            dist_km = s.get("distance_km", 0.0)
+            direction = s.get("compass_direction", "CENTER")
+            b_prob_pct = int(round(s.get("pfz_probability", 0.0) * 100))
+            rank = s.get("rank", 1)
+            if dist_km == 0.0 and direction == "CENTER":
+                continue
+            if lang == "bn":
+                spot_strings.append(f"স্পট #{rank}: {dist_km:.1f} কিমি {direction} ({b_prob_pct}%)")
+            elif lang == "bn_en":
+                spot_strings.append(f"Spot #{rank}: {dist_km:.1f} km {direction} ({b_prob_pct}%)")
+            elif lang == "hi-Latn":
+                spot_strings.append(f"Spot #{rank}: {dist_km:.1f} km {direction} ({b_prob_pct}%)")
+            else:
+                spot_strings.append(f"Spot #{rank}: {dist_km:.1f} km {direction} ({b_prob_pct}%)")
+
+        if spot_strings:
+            if lang == "bn":
+                base_response += f" সেরা মাছের স্থান: {', '.join(spot_strings)}।"
+            elif lang == "bn_en":
+                base_response += f" Top recommended spots: {', '.join(spot_strings)}."
+            elif lang == "hi-Latn":
+                base_response += f" Sabse behtar spots: {', '.join(spot_strings)}."
+            else:
+                base_response += f" Top recommended spots: {', '.join(spot_strings)}."
+
+    # Phase 3: Add 'why' explanations
+    why_data = recommendation_result.get("why", {})
+    if why_data:
+        primary_reason = why_data.get("primary_reason", "")
+        if primary_reason:
+            if lang == "bn":
+                base_response += f" কারণ: {primary_reason}"
+            elif lang == "bn_en":
+                base_response += f" Karon: {primary_reason}"
+            elif lang == "hi-Latn":
+                base_response += f" Kaaran: {primary_reason}"
+            else:
+                base_response += f" Reason: {primary_reason}"
+
+    return base_response
