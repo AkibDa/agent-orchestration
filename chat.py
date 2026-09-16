@@ -1,6 +1,6 @@
-# Proto/chat.py
+# chat.py
 """Interactive ORCA chat — the actual product experience with Stage Latency Profiling.
-Run with: python Proto/chat.py
+Run with: python chat.py
 """
 
 import os
