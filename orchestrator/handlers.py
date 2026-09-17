@@ -245,8 +245,11 @@ class NearestPFZHandler(HazardAlertHandler):
             if pfz_data.get("pfz_signal_present") or pfz_data.get("pfz_present"):
                 found = True
                 decision = "PFZ_FOUND"
-                prob = pfz_data.get("pfz_probability", 0)
-                reason = f"Nearest PFZ located with {prob*100:.0f}% confidence."
+                prob = pfz_data.get("pfz_probability")
+                if prob is not None:
+                    reason = f"Nearest PFZ located with {prob*100:.0f}% confidence."
+                else:
+                    reason = "Nearest PFZ located."
                 
                 candidates = pfz_data.get("candidates", [])
                 db_zones = pfz_data.get("db_zones", [])
@@ -260,9 +263,15 @@ class NearestPFZHandler(HazardAlertHandler):
                         "distance_km": getattr(cand, "distance_from_landmark", None),
                         "bearing": getattr(cand, "bearing_from_landmark", None),
                         "depth_m": getattr(cand, "depth", None),
-                        "probability": getattr(cand, "confidence", getattr(cand, "probability", prob))
+                        "probability": getattr(cand, "confidence", getattr(cand, "probability", prob)),
+                        "incois_distance_km_range": getattr(cand, "incois_distance_km_range", None),
+                        "incois_depth_m_range": getattr(cand, "incois_depth_m_range", None),
+                        "incois_bearing_deg": getattr(cand, "incois_bearing_deg", None),
+                        "incois_direction": getattr(cand, "incois_direction", None),
+                        "advisory_date": getattr(cand, "advisory_date", None),
+                        "landing_center": getattr(cand, "landing_center", None)
                     }
-                    validity = getattr(cand, "validity_window", "48h")
+                    validity = getattr(cand, "validity_window", None)
                     source = getattr(cand, "source", "INCOIS_PFZ_PROXY")
                 elif db_zones:
                     cand = db_zones[0]
@@ -302,6 +311,7 @@ class NearestPFZHandler(HazardAlertHandler):
             "candidate": candidate_data,
             "validity_window": validity,
             "source": source,
+            "location": {"name": getattr(plan.target_location, "name", "Target location") if plan.target_location else "Target location"},
             "pfz_summary": pfz_data if pfz_res and pfz_res.status in ("SUCCESS", "DEGRADED", "MOCKED", "success") else {}
         }
         return self._build_resp(plan, execution_order, context, recommendation, agent_timings, t_domain_ms, 0.0, t0)

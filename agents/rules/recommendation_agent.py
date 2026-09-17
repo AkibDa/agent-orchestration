@@ -191,9 +191,54 @@ class RecommendationAgent(BaseAgent):
             else:
                 action_code = "CANDIDATE_SEARCH_COMPLETE"
                 action_title = "FISHING CANDIDATE SEARCH RESULTS"
-                recommendation_text = f"Geospatial A* candidate search complete. Ranked {len(ranked_candidates)} safe reachability paths from origin."
-                why_dict["primary_reason"] = "Candidate reachability calculated utilizing A* over candidate grid."
+                recommendation_text = f"Geospatial candidate search complete. Ranked {len(ranked_candidates)} safe reachability paths from origin."
+                why_dict["primary_reason"] = "Candidate reachability calculated utilizing A* candidate ranker."
                 confidence = 0.95
+        elif plan.operation == "ROUTE_TO_FISHING_AREA" or plan.intent in ["route_search", "safe_route", "route"]:
+            from agents.geospatial.astar import plan_safe_route_astar
+            env_context = {"weather_data": weather_data, "cyclone_data": marine_safety_data}
+            dest_lat = target_loc.latitude if target_loc else lat
+            dest_lon = target_loc.longitude if target_loc else lon
+            route_res = plan_safe_route_astar(lat, lon, dest_lat, dest_lon, env_context, resolution_km=10.0)
+            
+            # Determine language
+            lang = getattr(plan, "language", "en")
+            from enum import Enum
+            if isinstance(lang, Enum):
+                lang = lang.value
+            
+            if route_res["route_status"] == "SUCCESS":
+                action_code = "ROUTE_GENERATED"
+                action_title = "SAFE ROUTE GENERATED"
+                dist = route_res['total_distance_km']
+                eta = route_res['estimated_travel_time_h']
+                
+                if lang == "bn":
+                    recommendation_text = f"সফলভাবে একটি নিরাপদ রুট তৈরি করা হয়েছে যা জমি এবং সীমাবদ্ধ অঞ্চল এড়িয়ে যায়। দূরত্ব: {dist} কিলোমিটার। পৌঁছানোর আনুমানিক সময় (ETA): {eta} ঘণ্টা।"
+                elif lang in ["bn_en", "bn-Latn"]:
+                    recommendation_text = f"Safolbhabe ekti nirapod route toiri kora hoyeche ja jomi o nishiddho onchol eriye chole. Durotto: {dist} km. ETA: {eta} ghonta."
+                elif lang in ["hi", "hi-Latn", "hi_en"]:
+                    recommendation_text = f"Safaltapurvak ek surakshit route banaya gaya hai jo zameen aur restricted zones se bachta hai. Doori: {dist} km. ETA: {eta} ghante."
+                else:
+                    recommendation_text = f"Successfully generated a safe route avoiding land and geofences. Distance: {dist} km. ETA: {eta} hours."
+                
+                why_dict["primary_reason"] = "A* Graph Traversal completed."
+                why_dict["routing_metrics"] = route_res
+                confidence = 0.98
+            else:
+                action_code = "NO_ROUTE_FOUND"
+                action_title = "NO VALID ROUTE FOUND"
+                if lang == "bn":
+                    recommendation_text = "গন্তব্যে যাওয়ার কোনো বৈধ রুট পাওয়া যায়নি। এটি সম্ভবত জমি বা সীমাবদ্ধ অঞ্চল দ্বারা অবরুদ্ধ।"
+                elif lang in ["bn_en", "bn-Latn"]:
+                    recommendation_text = "Gontobye jaoar kono boidho route paoa jayni. Eti shombhoboto jomi ba restricted zone dara oboruddho."
+                elif lang in ["hi", "hi-Latn", "hi_en"]:
+                    recommendation_text = "Gantavya tak ka koi vaidh route nahi mila. Yeh shayad zameen ya restricted zones dwara block ho sakta hai."
+                else:
+                    recommendation_text = "Could not find a valid route to the destination. It may be blocked by land or restricted zones."
+                    
+                why_dict["primary_reason"] = "A* Graph Traversal failed to find a path."
+                confidence = 0.90
         elif plan.operation == "TEMPORAL_PFZ_GUIDANCE":
             action_code = "TEMPORAL_PFZ_GUIDANCE"
             action_title = "TEMPORAL PFZ GUIDANCE"

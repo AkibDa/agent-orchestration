@@ -196,7 +196,12 @@ def generate_multilingual_response(recommendation_result: Dict[str, Any], langua
 
     if result_type == "PFZ_RESULT" and context:
         pfz_summary = recommendation_result.get("pfz_summary", {})
-        loc_name = recommendation_result.get("location", {}).get("name", "Target location") if isinstance(recommendation_result.get("location"), dict) else "Target location"
+        
+        loc_dict = recommendation_result.get("location")
+        if isinstance(loc_dict, dict) and loc_dict.get("name"):
+            loc_name = loc_dict["name"]
+        else:
+            loc_name = "Target location"
         
         if recommendation_result.get("found"):
             cand = recommendation_result.get("candidate", {})
@@ -204,58 +209,75 @@ def generate_multilingual_response(recommendation_result: Dict[str, Any], langua
             bearing = cand.get("bearing", "Unknown")
             lat = cand.get("latitude", "Unknown")
             lon = cand.get("longitude", "Unknown")
-            prob = cand.get("probability", 0) * 100
-            val = recommendation_result.get("validity_window", "48h")
+            prob = cand.get("probability")
+            val = recommendation_result.get("validity_window")
+            
+            inc_dist = cand.get("incois_distance_km_range")
+            inc_depth = cand.get("incois_depth_m_range")
+            inc_dir = cand.get("incois_direction")
+            landing_center = cand.get("landing_center")
+            ref_name = landing_center if landing_center else loc_name
+            source = recommendation_result.get("source", "Unknown")
             
             qualified = recommendation_result.get("qualified", False)
             threshold = recommendation_result.get("decision_threshold", 0.85) * 100
             
+            prob_str = f"Estimated PFZ probability {int(prob * 100)}%" if prob is not None else ""
+            val_str = f"forecast validity {val}" if val else ""
+            prob_str_en = f"Estimated PFZ probability is {int(prob * 100)}%" if prob is not None else ""
+            val_str_en = f"with a forecast validity of {val}" if val else ""
+            
+            # Combine them gracefully if either is present
+            meta_parts = [p for p in [prob_str, val_str] if p]
+            meta_str = ", ".join(meta_parts)
+            meta_parts_en = [p for p in [prob_str_en, val_str_en] if p]
+            meta_str_en = ", ".join(meta_parts_en)
+            
+            inc_str = ""
+            if inc_dist:
+                inc_str = f" [INCOIS: {inc_dist} km {inc_dir}, depth {inc_depth} m]"
+            
             if qualified:
                 if lang == "bn":
-                    return _make_segments([
-                        (f"{loc_name}-এর কাছাকাছি nearest PFZ: {loc_name} থেকে প্রায় {dist} km {bearing}-এ, location {lat}°N, {lon}°E। ", ["pfz", "geospatial"]),
-                        (f"Estimated PFZ probability {prob:.0f}%, forecast validity {val}।", ["pfz"])
-                    ])
-                elif lang == "bn-Latn":
-                    return _make_segments([
-                        (f"{loc_name}-r kachakachi nearest PFZ: {loc_name} theke praye {dist} km {bearing}-e, location {lat}°N, {lon}°E. ", ["pfz", "geospatial"]),
-                        (f"Estimated PFZ probability {prob:.0f}%, forecast validity {val}.", ["pfz"])
-                    ])
+                    segs = [(f"{ref_name}-এর কাছাকাছি nearest PFZ: {loc_name} থেকে প্রায় {dist} km {bearing}-এ, location {lat}°N, {lon}°E।{inc_str} ", ["pfz", "geospatial"])]
+                    if meta_str: segs.append((f"{meta_str}।", ["pfz"]))
+                    return _make_segments(segs)
+                elif lang == "bn-Latn" or lang == "bn_en":
+                    segs = [(f"{ref_name}-r kachakachi nearest PFZ: {loc_name} theke praye {dist} km {bearing}-e, location {lat}°N, {lon}°E.{inc_str} ", ["pfz", "geospatial"])]
+                    if meta_str: segs.append((f"{meta_str}.", ["pfz"]))
+                    return _make_segments(segs)
                 elif lang == "hi-Latn":
-                    return _make_segments([
-                        (f"{loc_name} ke paas nearest PFZ: {loc_name} se lagbhag {dist} km {bearing}, location {lat}°N, {lon}°E. ", ["pfz", "geospatial"]),
-                        (f"Estimated PFZ probability {prob:.0f}%, aur forecast {val} ke liye valid hai.", ["pfz"])
-                    ])
+                    segs = [(f"{ref_name} ke paas nearest PFZ: {loc_name} se lagbhag {dist} km {bearing}, location {lat}°N, {lon}°E.{inc_str} ", ["pfz", "geospatial"])]
+                    if meta_str: segs.append((f"{meta_str}.", ["pfz"]))
+                    return _make_segments(segs)
                 else:
-                    return _make_segments([
-                        (f"Nearest PFZ near {loc_name}: approximately {dist} km {bearing} of {loc_name}, at {lat}°N, {lon}°E. ", ["pfz", "geospatial"]),
-                        (f"Estimated PFZ probability is {prob:.0f}%, with a forecast validity of {val}.", ["pfz"])
-                    ])
+                    segs = [(f"Nearest PFZ from {ref_name}: approximately {dist} km {bearing} of {loc_name}, at {lat}°N, {lon}°E.{inc_str} ", ["pfz", "geospatial"])]
+                    if meta_str_en: segs.append((f"{meta_str_en}.", ["pfz"]))
+                    return _make_segments(segs)
             else:
+                prob_val = int(prob * 100) if prob is not None else 0
                 if lang == "bn":
                     return _make_segments([
-                        (f"{loc_name} থেকে প্রায় {dist} km {bearing}-এ একটি PFZ সিগন্যাল পাওয়া গেছে, ", ["pfz", "geospatial"]),
-                        (f"কিন্তু এটি {threshold:.0f}% qualification threshold অতিক্রম করেনি (সম্ভাবনা {prob:.0f}%)।", ["pfz"])
+                        (f"{ref_name}-এর কাছাকাছি একটি PFZ সিগন্যাল পাওয়া গেছে: {loc_name} থেকে প্রায় {dist} km {bearing}-এ, location {lat}°N, {lon}°E{inc_str}, ", ["pfz", "geospatial"]),
+                        (f"কিন্তু এটি {threshold:.0f}% qualification threshold অতিক্রম করেনি (সম্ভাবনা {prob_val}%)।", ["pfz"])
                     ])
-                elif lang == "bn-Latn":
+                elif lang == "bn-Latn" or lang == "bn_en":
                     return _make_segments([
-                        (f"{loc_name} theke praye {dist} km {bearing}-e ekta PFZ signal pawa geche, ", ["pfz", "geospatial"]),
-                        (f"kintu eta {threshold:.0f}% qualification threshold reach koreni (probability {prob:.0f}%).", ["pfz"])
+                        (f"{ref_name}-r kachakachi ekta PFZ signal pawa geche: {loc_name} theke praye {dist} km {bearing}-e, location {lat}°N, {lon}°E{inc_str}, ", ["pfz", "geospatial"]),
+                        (f"kintu eta {threshold:.0f}% qualification threshold reach koreni (probability {prob_val}%).", ["pfz"])
                     ])
                 elif lang == "hi-Latn":
                     return _make_segments([
-                        (f"{loc_name} se lagbhag {dist} km {bearing} mein ek PFZ signal mila hai, ", ["pfz", "geospatial"]),
-                        (f"par yeh {threshold:.0f}% qualification threshold tak nahi pohocha (probability {prob:.0f}%).", ["pfz"])
+                        (f"{ref_name} ke paas ek PFZ signal mila hai: {loc_name} se lagbhag {dist} km {bearing}, location {lat}°N, {lon}°E{inc_str}, ", ["pfz", "geospatial"]),
+                        (f"par yeh {threshold:.0f}% qualification threshold tak nahi pohocha (probability {prob_val}%).", ["pfz"])
                     ])
                 else:
                     return _make_segments([
-                        (f"A PFZ signal was detected approximately {dist} km {bearing} of {loc_name}, ", ["pfz", "geospatial"]),
-                        (f"but it did not reach the {threshold:.0f}% qualification threshold (probability {prob:.0f}%).", ["pfz"])
+                        (f"A PFZ signal from {ref_name} was detected approximately {dist} km {bearing} of {loc_name}, at {lat}°N, {lon}°E{inc_str}, ", ["pfz", "geospatial"]),
+                        (f"but it did not reach the {threshold:.0f}% qualification threshold (probability {prob_val}%).", ["pfz"])
                     ])
         else:
-            if lang == "bn":
-                return _make_segments([(f"{loc_name}: কাছাকাছি কোনো সম্ভাব্য মাছের এলাকা (PFZ) পাওয়া যায়নি।", ["pfz"])])
-            elif lang == "bn-Latn":
+            if lang == "bn" or lang == "bn-Latn":
                 return _make_segments([(f"{loc_name}: Kachakachi kono Potential Fishing Zone (PFZ) pawa jayni.", ["pfz"])])
             elif lang == "hi-Latn":
                 return _make_segments([(f"{loc_name}: Aas-paas koi Potential Fishing Zone (PFZ) nahi mila.", ["pfz"])])

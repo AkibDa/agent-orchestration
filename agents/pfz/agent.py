@@ -90,11 +90,12 @@ class PFZAgent(BaseAgent):
         candidates = get_pfz_advisory(lat, lon, count=plan.count)
         if candidates:
             # If we have official candidates near the user, we consider PFZ present
-            prob = getattr(candidates[0], "confidence", 1.0)
+            prob = getattr(candidates[0], "confidence", None)
+            is_qualified = prob >= 0.85 if prob is not None else True
             payload = {
                 "pfz_present": True,
                 "pfz_signal_present": True,
-                "pfz_qualified": prob >= 0.85,
+                "pfz_qualified": is_qualified,
                 "pfz_probability": prob,
                 "source": candidates[0].source,
                 "score_source": "OFFICIAL_ADVISORY",
@@ -164,8 +165,8 @@ class PFZAgent(BaseAgent):
                 )
             else:
                 # 2. Attempt optional configured external provider
-                from backend.services.data_fetchers.registry import get_pfz_provider
-                provider = get_pfz_provider()
+                # from backend-ORCA.services.data_fetchers.registry import get_pfz_provider
+                provider = None # get_pfz_provider()
                 if provider:
                     fetched_data = provider.fetch_pfz(lat, lon, timestamp)
                     if fetched_data:

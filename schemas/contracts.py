@@ -146,7 +146,7 @@ class DataContract(BaseModel):
     valid_time: Optional[datetime] = Field(None, description="When this data is valid for")
     retrieved_at: datetime = Field(default_factory=datetime.utcnow, description="When this data was fetched")
     quality: str = Field(..., description="'OBSERVED' or 'FORECAST'")
-    confidence: float = Field(1.0, description="Confidence of the source data")
+    confidence: Optional[float] = Field(None, description="Confidence of the source data")
 
 class Observation(DataContract):
     value: Any = Field(..., description="Observed value or UNKNOWN")
@@ -164,6 +164,7 @@ class WarningContract(DataContract):
     warning_text: Any = Field(..., description="Warning content")
 
 class PFZCandidate(DataContract):
+    pfz_id: Optional[str] = Field(None, description="Unique identifier for the PFZ")
     latitude: float = Field(...)
     longitude: float = Field(...)
     depth: Optional[float] = Field(None, description="Depth in meters if applicable")
@@ -171,6 +172,17 @@ class PFZCandidate(DataContract):
     distance_from_landmark: Optional[float] = Field(None)
     advisory_date: Optional[datetime] = Field(None)
     validity_window: Optional[str] = Field(None)
+    
+    incois_distance_km_range: Optional[str] = Field(None, description="Raw distance range from INCOIS")
+    incois_depth_m_range: Optional[str] = Field(None, description="Raw depth range from INCOIS")
+    incois_bearing_deg: Optional[int] = Field(None, description="Raw bearing from INCOIS")
+    incois_direction: Optional[str] = Field(None, description="Raw direction from INCOIS")
+    
+    landing_center: Optional[str] = Field(None, description="INCOIS landing center reference")
+    sector: Optional[str] = Field(None, description="INCOIS sector ID")
+    incois_reference_latitude: Optional[str] = Field(None, description="INCOIS landing center latitude")
+    incois_reference_longitude: Optional[str] = Field(None, description="INCOIS landing center longitude")
+
 
 class MarineCandidateIdentity(BaseModel):
     candidate_id: str
