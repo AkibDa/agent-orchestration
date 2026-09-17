@@ -311,6 +311,7 @@ class NearestPFZHandler(HazardAlertHandler):
             "candidate": candidate_data,
             "validity_window": validity,
             "source": source,
+            "location": {"name": getattr(plan.target_location, "name", "Target location") if plan.target_location else "Target location"},
             "pfz_summary": pfz_data if pfz_res and pfz_res.status in ("SUCCESS", "DEGRADED", "MOCKED", "success") else {}
         }
         return self._build_resp(plan, execution_order, context, recommendation, agent_timings, t_domain_ms, 0.0, t0)
