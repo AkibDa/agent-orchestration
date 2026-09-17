@@ -1,4 +1,4 @@
-# Proto/agents/rules/fishing_search.py
+# agents/rules/fishing_search.py
 
 from typing import List, Dict, Any
 from agents.geospatial.distance import haversine_distance, bearing, compass_direction

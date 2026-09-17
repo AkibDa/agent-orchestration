@@ -1,4 +1,4 @@
-# Proto/data_sources/open_meteo.py
+# data_sources/open_meteo.py
 
 import requests
 import logging

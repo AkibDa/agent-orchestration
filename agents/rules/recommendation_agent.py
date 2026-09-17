@@ -1,4 +1,4 @@
-# Proto/agents/rules/recommendation_agent.py
+# agents/rules/recommendation_agent.py
 
 from datetime import datetime, timezone
 from typing import Dict, Any

@@ -1,4 +1,4 @@
-# Proto/agents/geospatial/grid.py
+# agents/geospatial/grid.py
 
 import math
 from typing import List, Dict, Any

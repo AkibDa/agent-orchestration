@@ -1,4 +1,4 @@
-# Proto/agents/risk/model.py
+# agents/risk/model.py
 
 import json
 from pathlib import Path
@@ -9,9 +9,9 @@ import threading
 
 _PREDICT_LOCK = threading.Lock()
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-MODEL_PATH = REPO_ROOT / "Models" / "marine_risk" / "model" / "marine_risk_xgboost_v2.json"
-METADATA_PATH = REPO_ROOT / "Models" / "marine_risk" / "model" / "marine_risk_v2_model_metadata.json"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+MODEL_PATH = REPO_ROOT / "models" / "marine_risk" / "marine_risk_xgboost_v2.json"
+METADATA_PATH = REPO_ROOT / "models" / "marine_risk" / "marine_risk_v2_model_metadata.json"
 
 EXPECTED_FEATURES = [
     "latitude", "longitude", "hour", "month", "sin_hour", "cos_hour",

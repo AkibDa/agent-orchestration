@@ -1,4 +1,4 @@
-# Proto/conversation/language.py
+# conversation/language.py
 
 import re
 

@@ -1,4 +1,4 @@
-# Proto/location/models.py
+# location/models.py
 
 from dataclasses import dataclass, field
 from typing import Optional, List

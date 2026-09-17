@@ -1,4 +1,4 @@
-# Proto/conversation/model.py
+# conversation/model.py
 
 import time
 import gc

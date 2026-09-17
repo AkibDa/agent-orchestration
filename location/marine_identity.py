@@ -1,4 +1,4 @@
-# Proto/location/marine_identity.py
+# location/marine_identity.py
 
 from typing import Optional
 from dataclasses import dataclass

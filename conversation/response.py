@@ -1,4 +1,4 @@
-# Proto/conversation/response.py
+# conversation/response.py
 
 from schemas.contracts import QueryPlan
 from conversation.model import ConversationModel

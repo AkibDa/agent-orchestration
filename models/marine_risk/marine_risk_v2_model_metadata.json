@@ -1,0 +1,50 @@
+{
+  "model": "marine_risk_xgboost",
+  "version": "v2",
+  "prediction_horizon_hours": 6,
+  "objective": "multi:softprob",
+  "classes": {
+    "0": "SAFE",
+    "1": "CAUTION",
+    "2": "DANGER"
+  },
+  "features": [
+    "latitude",
+    "longitude",
+    "hour",
+    "month",
+    "sin_hour",
+    "cos_hour",
+    "sin_month",
+    "cos_month",
+    "u10",
+    "v10",
+    "wind_speed_10m",
+    "t2m",
+    "msl",
+    "tp",
+    "wind_gradient",
+    "pressure_gradient",
+    "temperature_gradient",
+    "pressure_local_anomaly",
+    "wind_local_anomaly",
+    "wind_delta_3h",
+    "pressure_delta_3h",
+    "cyclone_distance_km",
+    "cyclone_wind_kt",
+    "cyclone_pressure_hpa",
+    "cyclone_pressure_drop_hpa",
+    "cyclone_category_rank",
+    "active_cyclone_flag"
+  ],
+  "n_features": 27,
+  "best_iteration": 65,
+  "training_seconds": 30.03769175001071,
+  "label_type": "future_rule_derived_hazard_surrogate",
+  "evaluation_priority": [
+    "DANGER precision",
+    "DANGER recall",
+    "DANGER F1"
+  ],
+  "warning": "The target is a six-hour-ahead hazard state generated from the project's rule-derived hazard policy. Metrics do not represent historical marine-incident prediction accuracy."
+}

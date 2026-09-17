@@ -1,4 +1,4 @@
-# Proto/agents/marine_safety/bsi.py
+# agents/marine_safety/bsi.py
 """
 ORCA implementation of the publicly described INCOIS BSI/SVAS structure.
 Thresholds are ORCA assumptions unless otherwise noted.

@@ -1,4 +1,4 @@
-# Proto/data_sources/mosdac.py
+# data_sources/mosdac.py
 
 import requests
 import logging

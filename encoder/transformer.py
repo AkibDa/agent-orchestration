@@ -1,4 +1,4 @@
-# Proto/models/transformer.py
+# encoder/transformer.py
 
 import tensorflow as tf
 from .tokenizer_pipeline import encode_text, generate_mask, char_lookup, MAX_LEN

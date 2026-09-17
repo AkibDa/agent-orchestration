@@ -1,4 +1,4 @@
-# Proto/agents/geospatial/distance.py
+# agents/geospatial/distance.py
 
 import math
 from typing import Tuple

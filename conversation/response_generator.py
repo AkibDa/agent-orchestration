@@ -1,4 +1,4 @@
-# Proto/conversation/response_generator.py
+# conversation/response_generator.py
 
 from typing import Dict, Any, List, Tuple
 import uuid

@@ -1,4 +1,4 @@
-# Proto/location/location_metadata.py
+# location/location_metadata.py
 
 # Inland state / UT / city dictionary for disambiguation & inland fast-path
 INLAND_LOCATIONS = {
