@@ -125,8 +125,8 @@ class GeospatialAgent(BaseAgent):
         candidates = generate_candidate_grid_points(cand_lat, cand_lon)
 
         # Distance to Coast calculation for geography / nearest_coast operations
-        from location.gazetteer import GAZETTEER
         from location.location_metadata import LOCATION_METADATA
+        from .coastline import distance_to_coast
 
         meta = LOCATION_METADATA.get(loc_name.lower(), {})
         coastal_acc = meta.get("coastal_access", True)
@@ -135,16 +135,15 @@ class GeospatialAgent(BaseAgent):
             min_dist = 0.0
             nearest_coast_name = f"{loc_name} Coastline"
         else:
-            # Find nearest coastal gazetteer point from origin coordinates
-            min_dist = float("inf")
-            nearest_coast_name = "Nearest Coast"
-            for g_key, (g_lat, g_lon, g_name) in GAZETTEER.items():
-                g_meta = LOCATION_METADATA.get(g_key, {})
-                if g_meta.get("coastal_access", True) and g_key not in ["kolkata", "calcutta", "bengaluru", "pune", "ranchi"]:
-                    dist = haversine_distance(lat, lon, g_lat, g_lon)
-                    if dist < min_dist:
-                        min_dist = dist
-                        nearest_coast_name = g_name
+            # Find exact distance to Natural Earth Coastline geometry
+            calculated_dist = distance_to_coast(lat, lon)
+            if calculated_dist is not None:
+                min_dist = calculated_dist
+                nearest_coast_name = "Nearest Coastline Edge"
+            else:
+                # Fallback if geometry failed to load
+                min_dist = float("inf")
+                nearest_coast_name = "Unknown Coastline"
 
         payload = {
             "origin": {

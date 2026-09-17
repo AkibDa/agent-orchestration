@@ -376,6 +376,8 @@ class ConversationModel:
           data["action"] = data["action"].upper()
       if "action_type" in data and isinstance(data["action_type"], str):
           data["action_type"] = data["action_type"].upper()
+          if data["action_type"] == "SAFE_ROUTE":
+              data["action_type"] = "SEARCH"
       if "intent" in data and isinstance(data["intent"], str):
           data["intent"] = data["intent"].lower()
 
@@ -390,14 +392,14 @@ class ConversationModel:
               logging.getLogger(__name__).error(f"JSON parsing failed completely for raw output: {raw_output}. Falling back to regex extraction.")
 
               # Try to extract location text via regex
-              loc_match = re.search(r'"text"\s*:\s*"([^"]+)"', raw_output)
-              intent_match = re.search(r'"intent"\s*:\s*"([^"]+)"', raw_output)
-              action_match = re.search(r'"action"\s*:\s*"([^"]+)"', raw_output)
-              activity_match = re.search(r'"activity"\s*:\s*"([^"]+)"', raw_output)
+              loc_match = re.search(r'"(text|l)"\s*:\s*(?:\[\[)?"([^"]+)"', raw_output)
+              intent_match = re.search(r'"(intent|i)"\s*:\s*"([^"]+)"', raw_output)
+              action_match = re.search(r'"(action|a)"\s*:\s*"([^"]+)"', raw_output)
+              activity_match = re.search(r'"(activity|act)"\s*:\s*"([^"]+)"', raw_output)
 
-              loc_text = loc_match.group(1) if loc_match else None
-              intent_val = intent_match.group(1) if intent_match else "unknown"
-              action_val = action_match.group(1) if action_match else "ORCA_QUERY"
+              loc_text = loc_match.group(2) if loc_match else None
+              intent_val = intent_match.group(2) if intent_match else "unknown"
+              action_val = action_match.group(2) if action_match else "ORCA_QUERY"
 
               if loc_text:
                   return ExtractionResult(

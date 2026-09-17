@@ -3,6 +3,16 @@
 import math
 from typing import List, Dict, Any
 from .distance import haversine_distance, bearing, compass_direction
+import logging
+
+logger = logging.getLogger(__name__)
+
+try:
+    from global_land_mask import globe
+    HAS_LAND_MASK = True
+except ImportError:
+    HAS_LAND_MASK = False
+    logger.warning("global-land-mask not installed. Grid points will not be filtered for land.")
 
 EARTH_RADIUS_KM = 6371.0
 
@@ -42,21 +52,30 @@ def generate_candidate_grid_points(
         bearings_deg = [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]
 
     candidates = []
-    # Always include origin point
-    candidates.append({
-        "id": "origin",
-        "latitude": round(origin_lat, 4),
-        "longitude": round(origin_lon, 4),
-        "distance_km": 0.0,
-        "bearing_deg": 0.0,
-        "compass_direction": "CENTER"
-    })
+    # Include origin point only if it's not on land
+    origin_is_land = False
+    if HAS_LAND_MASK and globe.is_land(origin_lat, origin_lon):
+        origin_is_land = True
+        
+    if not origin_is_land:
+        candidates.append({
+            "id": "origin",
+            "latitude": round(origin_lat, 4),
+            "longitude": round(origin_lon, 4),
+            "distance_km": 0.0,
+            "bearing_deg": 0.0,
+            "compass_direction": "CENTER"
+        })
 
     # Generate grid points
     idx = 1
     for r in radii_km:
         for b in bearings_deg:
             plat, plon = offset_coordinate(origin_lat, origin_lon, r, b)
+            
+            if HAS_LAND_MASK and globe.is_land(plat, plon):
+                continue
+                
             candidates.append({
                 "id": f"cand_{idx}",
                 "latitude": round(plat, 4),

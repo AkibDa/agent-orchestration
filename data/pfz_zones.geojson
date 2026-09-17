@@ -1,0 +1,80 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "pfz_id": "DEMO-KOCHI-01",
+        "confidence": 0.88,
+        "depth_m": 50.0,
+        "validity_window": "48h",
+        "timestamp": "2030-01-01T00:00:00Z",
+        "species": ["Tuna", "Mackerel"],
+        "source": "DEMO/SYNTHETIC",
+        "description": "Synthetic high probability PFZ zone off the coast of Kochi"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [75.9, 9.8],
+            [76.0, 9.8],
+            [76.0, 10.1],
+            [75.9, 10.1],
+            [75.9, 9.8]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "pfz_id": "DEMO-DIGHA-01",
+        "confidence": 0.79,
+        "depth_m": 40.0,
+        "validity_window": "48h",
+        "timestamp": "2030-01-01T00:00:00Z",
+        "species": ["Hilsa", "Bombay Duck"],
+        "source": "DEMO/SYNTHETIC",
+        "description": "Synthetic medium probability PFZ zone off the coast of Digha"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [87.6, 21.3],
+            [87.8, 21.3],
+            [87.8, 21.6],
+            [87.6, 21.6],
+            [87.6, 21.3]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "pfz_id": "DEMO-EXPIRED-01",
+        "confidence": 0.95,
+        "depth_m": 30.0,
+        "validity_window": "24h",
+        "timestamp": "2020-01-01T00:00:00Z",
+        "species": ["Sardine"],
+        "source": "DEMO/SYNTHETIC",
+        "description": "Expired synthetic PFZ zone"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [74.0, 15.0],
+            [74.5, 15.0],
+            [74.5, 15.5],
+            [74.0, 15.5],
+            [74.0, 15.0]
+          ]
+        ]
+      }
+    }
+  ]
+}
