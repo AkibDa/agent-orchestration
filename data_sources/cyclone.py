@@ -1,4 +1,4 @@
-# Proto/data_sources/cyclone.py
+# data_sources/cyclone.py
 
 import requests
 import re

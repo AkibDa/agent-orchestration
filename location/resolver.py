@@ -1,4 +1,4 @@
-# Proto/location/resolver.py
+# location/resolver.py
 
 import re
 import math

@@ -1,4 +1,4 @@
-# Proto/agents/geospatial/astar.py
+# agents/geospatial/astar.py
 
 import heapq
 from typing import List, Dict, Any, Tuple

@@ -1,4 +1,4 @@
-# Proto/agents/ocean/model.py
+# agents/ocean/model.py
 
 import json
 from pathlib import Path
@@ -10,8 +10,8 @@ import threading
 
 _PREDICT_LOCK = threading.Lock()
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-MODEL_PATH = REPO_ROOT / "Models" / "ocean_suitability" / "model" / "ocean_suitability_hierarchical_xgboost.json"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+MODEL_PATH = REPO_ROOT / "models" / "ocean_suitability" / "ocean_suitability_hierarchical_xgboost.json"
 
 LAT_BOUNDS = (5.0, 25.0)
 LON_BOUNDS = (65.0, 95.0)

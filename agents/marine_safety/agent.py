@@ -1,4 +1,4 @@
-# Proto/agents/marine_safety/agent.py
+# agents/marine_safety/agent.py
 
 from datetime import datetime, timezone
 from typing import Dict

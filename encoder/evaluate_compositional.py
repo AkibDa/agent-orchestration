@@ -1,4 +1,4 @@
-# Proto/models/evaluate_compositional.py
+# encoder/evaluate_compositional.py
 #
 # V0 "freeze gate" test, per the adversarial error analysis:
 #   1. Hand-authored minimal pairs that directly target the two known

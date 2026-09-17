@@ -1,4 +1,4 @@
-# Proto/conversation/normalize.py
+# conversation/normalize.py
 
 from schemas.extraction import ExtractionResult, Intent, LocationItem
 import re

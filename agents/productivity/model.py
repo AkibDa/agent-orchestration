@@ -1,4 +1,4 @@
-# Proto/agents/productivity/model.py
+# agents/productivity/model.py
 
 import json
 import os
@@ -13,9 +13,9 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import keras
 
 PROTO_DIR = Path(__file__).resolve().parents[2]
-REPO_ROOT = PROTO_DIR.parent
+REPO_ROOT = PROTO_DIR
 
-MODEL_PATH = REPO_ROOT / "Models" / "fish_productivity" / "model" / "fish_productivity_lstm_12m_env.keras"
+MODEL_PATH = REPO_ROOT / "models" / "fish_productivity" / "fish_productivity_lstm_12m_env.keras"
 METADATA_PATH = REPO_ROOT / "Datasets" / "processed" / "training" / "fish_productivity_12m_env" / "metadata.json"
 
 _MODEL_SINGLETON = None

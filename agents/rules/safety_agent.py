@@ -1,4 +1,4 @@
-# Proto/agents/rules/safety_agent.py
+# agents/rules/safety_agent.py
 
 from datetime import datetime, timezone
 from typing import Dict

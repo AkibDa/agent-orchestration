@@ -1,4 +1,4 @@
-# Proto/conversation/prompts.py
+# conversation/prompts.py
 
 EXTRACTION_SYSTEM_PROMPT = """ORCA intake router. Return minimal JSON:
 {

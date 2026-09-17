@@ -1,4 +1,4 @@
-# Proto/models/evaluate_errors.py
+# encoder/evaluate_errors.py
 
 import numpy as np
 import tensorflow as tf

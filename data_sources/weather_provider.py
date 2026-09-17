@@ -1,4 +1,4 @@
-# Proto/data_sources/weather_provider.py
+# data_sources/weather_provider.py
 
 import logging
 import time

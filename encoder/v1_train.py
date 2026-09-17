@@ -1,4 +1,4 @@
-# Proto/encoder/v1_train.py
+# encoder/v1_train.py
 from pathlib import Path
 import json
 import numpy as np

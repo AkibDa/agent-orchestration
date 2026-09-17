@@ -1,4 +1,4 @@
-# Proto/agents/risk/agent.py
+# agents/risk/agent.py
 
 from datetime import datetime, timezone
 from typing import Dict

@@ -1,4 +1,4 @@
-# Proto/agents/pfz/model.py
+# agents/pfz/model.py
 
 import json
 from pathlib import Path
@@ -10,9 +10,9 @@ import threading
 
 _PREDICT_LOCK = threading.Lock()
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-MODEL_PATH = REPO_ROOT / "Models" / "pfz" / "model" / "pfz_xgboost.json"
-CONFIG_PATH = REPO_ROOT / "Models" / "pfz" / "config.json"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+MODEL_PATH = REPO_ROOT / "models" / "pfz" / "pfz_xgboost.json"
+CONFIG_PATH = REPO_ROOT / "models" / "pfz" / "config.json"
 
 EXPECTED_FEATURES = [
     "latitude", "longitude", "era_sst", "era_u10", "era_v10",

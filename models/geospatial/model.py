@@ -1,4 +1,4 @@
-# Proto/agents/geospatial/model.py
+# models/geospatial/model.py
 
 def predict(features: dict) -> dict:
   return {

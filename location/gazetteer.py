@@ -1,4 +1,4 @@
-# Proto/location/gazetteer.py
+# location/gazetteer.py
 
 GAZETTEER = {
 

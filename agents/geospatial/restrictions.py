@@ -1,4 +1,4 @@
-# Proto/agents/geospatial/restrictions.py
+# agents/geospatial/restrictions.py
 
 from typing import Dict, Any, Tuple
 

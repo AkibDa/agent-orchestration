@@ -1,4 +1,4 @@
-# Proto/agents/weather/model.py
+# agents/weather/model.py
 """SUPPLEMENTARY ORCA PREDICTION — not an official forecast."""
 
 import json
@@ -11,10 +11,10 @@ import threading
 
 _PREDICT_LOCK = threading.Lock()
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
-MODEL_STAGE1_PATH = REPO_ROOT / "Models" / "weather_risk" / "model" / "weather_risk_v4_normal_hazard.json"
-MODEL_STAGE2_PATH = REPO_ROOT / "Models" / "weather_risk" / "model" / "weather_risk_v4_caution_danger.json"
+MODEL_STAGE1_PATH = REPO_ROOT / "models" / "weather_risk" / "weather_risk_v4_normal_hazard.json"
+MODEL_STAGE2_PATH = REPO_ROOT / "models" / "weather_risk" / "weather_risk_v4_caution_danger.json"
 
 EXPECTED_FEATURES = [
     "latitude", "longitude", "hour", "month", "sin_hour", "cos_hour",

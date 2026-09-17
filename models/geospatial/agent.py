@@ -1,4 +1,4 @@
-# Proto/agents/geospatial/agent.py
+# models/geospatial/agent.py
 
 from datetime import datetime, timezone
 from typing import Dict, Any
