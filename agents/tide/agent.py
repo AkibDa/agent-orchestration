@@ -63,18 +63,34 @@ class TideAgent(BaseAgent):
                         
                 current_height = levels[closest_idx]
                 
-                is_rising = True
-                for i in range(closest_idx + 1, len(levels)):
-                    if levels[i] is not None:
-                        is_rising = levels[i] > current_height
-                        break
-                        
+                is_rising = None
+                if closest_idx > 0 and closest_idx < len(levels) - 1:
+                    prev_l = levels[closest_idx - 1]
+                    next_l = levels[closest_idx + 1]
+                    if prev_l is not None and next_l is not None:
+                        if prev_l < current_height and current_height < next_l:
+                            is_rising = True
+                        elif prev_l > current_height and current_height > next_l:
+                            is_rising = False
+                
+                if is_rising is None:
+                    # Fallback if strict condition not met
+                    is_rising = True
+                    for i in range(closest_idx + 1, len(levels)):
+                        if levels[i] is not None:
+                            is_rising = levels[i] > current_height
+                            break
+                            
                 next_high_time = None
                 next_high_h = None
                 next_low_time = None
                 next_low_h = None
                 
-                for i in range(closest_idx + 1, len(levels) - 1):
+                for i in range(1, len(levels) - 1):
+                    # We only care about events AFTER target_timestamp
+                    if timestamps[i] <= target_timestamp:
+                        continue
+                        
                     if levels[i] is None: continue
                     
                     prev_l = levels[i-1]
@@ -92,11 +108,19 @@ class TideAgent(BaseAgent):
                     if next_high_time and next_low_time:
                         break
                         
-                # Format to HH:MM to maintain existing expected format, but include day if needed.
-                # Just HH:MM as the mockup had.
+                # Format time nicely: "2026-09-19 01:00"
                 def format_time(t_str):
                     if not t_str: return None
-                    return t_str.split("T")[1]
+                    return t_str.replace("T", " ")
+                    
+                # PRINT DEBUGGING AS REQUESTED
+                print("Current/request datetime:", target_time)
+                print("Current selected sea-level sample datetime:", times[closest_idx].replace("T", " "))
+                print("Current sea-level value:", current_height)
+                print("Next high-water datetime:", format_time(next_high_time))
+                print("Next high-water value:", next_high_h)
+                print("Next low-water datetime:", format_time(next_low_time))
+                print("Next low-water value:", next_low_h)
                     
                 tide_data = {
                     "status": "AVAILABLE",

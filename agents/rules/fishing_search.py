@@ -65,17 +65,32 @@ def rank_fishing_candidates(
         brng = bearing(origin_lat, origin_lon, c_lat, c_lon) if dist > 0 else 0.0
         comp_dir = compass_direction(brng) if dist > 0 else "CENTER"
 
-        pfz_prob = cand.get("pfz_probability")
-        pfz_prob = pfz_prob if pfz_prob is not None else 0.5
+        raw_pfz_prob = cand.get("pfz_probability")
+        
+        # Determine the score value based on whether it's an official advisory without a probability or an explicit float
+        is_official = cand.get("source") == "INCOIS_LIVE" or cand.get("source") == "INCOIS_OFFICIAL"
+        
+        if raw_pfz_prob is not None:
+            pfz_score_val = raw_pfz_prob
+        elif is_official:
+            pfz_score_val = 1.0 # Max score for definitive advisory
+        else:
+            pfz_score_val = 0.5
+            
         risk_pen = risk_penalties.get(w_risk, 0.5)
         norm_dist_penalty = min(dist / 30.0, 1.0)
         
-        pfz_component = 0.50 * pfz_prob
+        pfz_component = 0.50 * pfz_score_val
         dist_component = 0.25 * norm_dist_penalty
         risk_component = 0.25 * risk_pen
         score = pfz_component - dist_component - risk_component
         
-        sel_reason = f"PFZ probability {int(pfz_prob*100)}% with {w_risk} weather risk at {round(dist,1)}km {comp_dir}"
+        if raw_pfz_prob is not None:
+            sel_reason = f"PFZ probability {int(raw_pfz_prob*100)}% with {w_risk} weather risk at {round(dist,1)}km {comp_dir}"
+        elif is_official:
+            sel_reason = f"Official PFZ advisory present with {w_risk} weather risk at {round(dist,1)}km {comp_dir}"
+        else:
+            sel_reason = f"Unknown PFZ probability with {w_risk} weather risk at {round(dist,1)}km {comp_dir}"
         
         score_source = "RULE_BASED_WEIGHTED"
         score_reason = (
@@ -90,7 +105,7 @@ def rank_fishing_candidates(
             "distance_km": round(dist, 1),
             "bearing_deg": round(brng, 1),
             "compass_direction": comp_dir,
-            "pfz_probability": round(pfz_prob, 4),
+            "pfz_probability": round(raw_pfz_prob, 4) if raw_pfz_prob is not None else None,
             "weather_risk": w_risk,
             "safety_clearance": s_clear,
             "eligible": True,

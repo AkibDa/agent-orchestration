@@ -154,15 +154,21 @@ class RecommendationAgent(BaseAgent):
             }
         }
 
-        if pfz_qualified:
-            why_dict["fishing_reason"] = f"PFZ probability is {int((pfz_prob if pfz_prob is not None else 0.0)*100)}%"
-        else:
-            thresh_str = f"below configured threshold ({int(pfz_data.get('decision_threshold', 0.85)*100)}%)" if pfz_prob is not None else "No PFZ data"
-            prob_str = f"{int((pfz_prob if pfz_prob is not None else 0.0)*100)}%" if pfz_prob is not None else "Unknown"
-            if pfz_signal_present:
-                why_dict["fishing_reason"] = f"Model-estimated PFZ likelihood: {prob_str}, {thresh_str}. Not identified as a PFZ."
+        if pfz_prob is not None:
+            if pfz_qualified:
+                why_dict["fishing_reason"] = f"PFZ probability is {int(pfz_prob*100)}%"
             else:
-                why_dict["fishing_reason"] = f"No PFZ signal detected. Model-estimated likelihood: {prob_str}, {thresh_str}."
+                thresh_str = f"below configured threshold ({int(pfz_data.get('decision_threshold', 0.85)*100)}%)"
+                if pfz_signal_present:
+                    why_dict["fishing_reason"] = f"Model-estimated PFZ likelihood: {int(pfz_prob*100)}%, {thresh_str}. Not identified as a PFZ."
+                else:
+                    why_dict["fishing_reason"] = f"No PFZ signal detected. Model-estimated likelihood: {int(pfz_prob*100)}%, {thresh_str}."
+        else:
+            is_official = pfz_data.get("source") in ("INCOIS_LIVE", "INCOIS_OFFICIAL")
+            if is_official and pfz_present:
+                why_dict["fishing_reason"] = "Official INCOIS PFZ advisory present. Model-estimated probability: unavailable."
+            else:
+                why_dict["fishing_reason"] = "No PFZ data available."
 
         # Synthesis Matrix
         if plan.operation == "DISTANCE_TO_COAST":
@@ -534,7 +540,7 @@ class RecommendationAgent(BaseAgent):
                 for c in w_pfz_data["candidates"]:
                     c_lat = getattr(c, "latitude", None) if not isinstance(c, dict) else c.get("latitude")
                     c_lon = getattr(c, "longitude", None) if not isinstance(c, dict) else c.get("longitude")
-                    c_conf = getattr(c, "confidence", 0.8) if not isinstance(c, dict) else c.get("confidence", 0.8)
+                    c_conf = getattr(c, "confidence", None) if not isinstance(c, dict) else c.get("confidence")
                     c_src = getattr(c, "source", "INCOIS_OFFICIAL") if not isinstance(c, dict) else c.get("source", "INCOIS_OFFICIAL")
                     c_id = getattr(c, "id", f"{c_lat}_{c_lon}") if not isinstance(c, dict) else c.get("id", f"{c_lat}_{c_lon}")
                     w_candidate_evals.append({
@@ -625,14 +631,22 @@ class RecommendationAgent(BaseAgent):
                     region=target_loc.name if target_loc else "Marine Region"
                 )
 
-                cand_pfz_prob = spot.get("pfz_probability", 0.0)
-                cand_pfz_present = bool(cand_pfz_prob >= pfz_data.get("decision_threshold", 0.85))
-                cand_source = pfz_data.get("source", "ORCA_PFZ_MODEL")
+                cand_pfz_prob = spot.get("pfz_probability")
+                cand_source = spot.get("source") or pfz_data.get("source", "ORCA_PFZ_MODEL")
+                is_official = cand_source in ("INCOIS_LIVE", "INCOIS_OFFICIAL")
 
-                if cand_pfz_present:
-                    pfz_desc = f"Model-estimated PFZ likelihood: {int((cand_pfz_prob if cand_pfz_prob is not None else 0.0)*100)}%"
+                if cand_pfz_prob is not None:
+                    cand_pfz_present = bool(cand_pfz_prob >= pfz_data.get("decision_threshold", 0.85))
+                    if cand_pfz_present:
+                        pfz_desc = f"Model-estimated PFZ likelihood: {int(cand_pfz_prob*100)}%"
+                    else:
+                        pfz_desc = f"Model-estimated PFZ likelihood: {int(cand_pfz_prob*100)}%, below threshold ({int(pfz_data.get('decision_threshold', 0.85)*100)}%)"
                 else:
-                    pfz_desc = f"Model-estimated PFZ likelihood: {int((cand_pfz_prob if cand_pfz_prob is not None else 0.0)*100)}%, below threshold ({int(pfz_data.get('decision_threshold', 0.85)*100)}%)"
+                    cand_pfz_present = True if is_official else False
+                    if is_official:
+                        pfz_desc = "INCOIS advisory present\nModel-estimated probability: unavailable"
+                    else:
+                        pfz_desc = "No PFZ data available"
 
                 formatted_cand = MarineCandidateIdentity(
                     candidate_id=str(spot.get("id", f"{spot_lat}_{spot_lon}")),
@@ -645,7 +659,7 @@ class RecommendationAgent(BaseAgent):
                     bearing_from_landmark=identity.compass_direction,
                     pfz_probability=cand_pfz_prob,
                     pfz_present=cand_pfz_present,
-                    pfz_signal_present=bool(cand_pfz_prob > 0),
+                    pfz_signal_present=bool(cand_pfz_prob > 0) if cand_pfz_prob is not None else cand_pfz_present,
                     pfz_qualified=cand_pfz_present,
                     pfz_source=cand_source,
                     pfz_threshold=pfz_data.get("decision_threshold", 0.85),
