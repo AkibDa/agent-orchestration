@@ -444,6 +444,36 @@ def generate_multilingual_response(recommendation_result: Dict[str, Any], langua
                 (f"Weather: {temp}°C, {cloud}% cloud cover, {precip_str_en}. Wind: {w_speed} m/s from {w_dir}°. ", ["weather"]),
                 (f"Waves: {w_height} m, period {w_period} s. SST: {sst}°C, surface current {curr_str_en}.", ["ocean_state"])
             ])
+
+    if result_type == "WEATHER_RESULT" and context:
+        conds = recommendation_result.get("conditions", {})
+        loc_name = recommendation_result.get("location", {}).get("name", "Target location") if isinstance(recommendation_result.get("location"), dict) else "Target location"
+        
+        w_speed = conds.get("wind_speed_ms", "unknown")
+        w_dir = conds.get("wind_direction", "unknown")
+        temp = conds.get("temperature_c", "unknown")
+        cloud = conds.get("cloud_cover_pct", "unknown")
+        precip = conds.get("precipitation_m", "unknown")
+        
+        precip_str_en = "no precipitation" if precip == 0 or precip == 0.0 else f"{precip} m precipitation"
+        precip_str_bn_en = "brishti nei" if precip == 0 or precip == 0.0 else f"{precip} m brishti"
+        precip_str_hi = "barish nahi hai" if precip == 0 or precip == 0.0 else f"{precip} m barish"
+        
+        if lang == "bn-Latn":
+            return _make_segments([
+                (f"**{loc_name}-r kachhakachhi aaj abohawa:** ", []),
+                (f"Temperature {temp}°C, cloud cover {cloud}%, {precip_str_bn_en}. Wind {w_speed} m/s, direction {w_dir}°.", ["weather"])
+            ])
+        elif lang == "hi-Latn":
+            return _make_segments([
+                (f"**{loc_name} ke paas aaj mausam:** ", []),
+                (f"Temperature {temp}°C, cloud cover {cloud}%, {precip_str_hi}. Wind {w_speed} m/s, direction {w_dir}°.", ["weather"])
+            ])
+        else:
+            return _make_segments([
+                (f"**Weather near {loc_name}:** ", []),
+                (f"{temp}°C, {cloud}% cloud cover, {precip_str_en}. Wind: {w_speed} m/s from {w_dir}°.", ["weather"])
+            ])
             
     if result_type == "PRODUCTIVITY_RESULT":
         loc_name = recommendation_result.get("reference_location", {}).get("name", "Target location")
@@ -526,7 +556,8 @@ def generate_multilingual_response(recommendation_result: Dict[str, Any], langua
         for s in ranked_spots[:3]:
             dist_km = s.get("distance_km", 0.0)
             direction = s.get("compass_direction", "CENTER")
-            b_prob_pct = int(round(s.get("pfz_probability", 0.0) * 100))
+            p = s.get("pfz_probability")
+            b_prob_pct = int(round((p if p is not None else 0.0) * 100))
             rank = s.get("rank", 1)
             if dist_km == 0.0 and direction == "CENTER":
                 continue

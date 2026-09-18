@@ -118,6 +118,12 @@ def detect_special_operations(raw_query: str, extraction=None) -> str | None:
         print("DEBUG: returning PRODUCTIVITY_ANALYSIS")
         return "PRODUCTIVITY_ANALYSIS"
 
+    weather_only_kws = ["weather", "mausam", "aabohawa", "abohawa", "temperature", "rain", "wind", "cloud"]
+    ocean_kws = ["tide", "wave", "joar", "bhata", "jowar", "dhau", "sea", "ocean", "samundar", "somudro", "current", "sst", "surface"]
+    if any(kw in q_low for kw in weather_only_kws) and not any(kw in q_low for kw in ocean_kws):
+        if extraction.intent.value in ("marine_conditions", "unknown"):
+            return "ASSESS_WEATHER"
+
     return None
 
 def parse_relative_spatial_constraint(raw_query: str, ref_loc: GeoLocation | None, extraction: ExtractionResult | None = None) -> tuple[SpatialConstraint | None, GeoLocation | None]:
@@ -593,17 +599,18 @@ def llm_route_stateful(
           state.merge(fast_result)
           plan = _plan_from_state(query, state, extract_location_fn, current_extraction=fast_result, fallback_location=fallback_location)
           
-          # Overwrite operations to match the fast intent
-          if fast_route.intent == "hazard_alert":
-              plan.operation = "ASSESS_HAZARD"
-          elif fast_route.intent == "nearest_pfz":
-              plan.operation = "NEAREST_PFZ_SEARCH"
-          elif fast_route.intent == "marine_safety_forecast":
-              plan.operation = "ASSESS"
-          elif fast_route.intent == "marine_conditions":
-              plan.operation = "ASSESS"
-          elif fast_route.intent == "productivity_analysis":
-              plan.operation = "ASSESS"
+          # Overwrite operations to match the fast intent, but preserve specialized operations
+          if plan.operation in (None, "ASSESS"):
+              if fast_route.intent == "hazard_alert":
+                  plan.operation = "ASSESS_HAZARD"
+              elif fast_route.intent == "nearest_pfz":
+                  plan.operation = "NEAREST_PFZ_SEARCH"
+              elif fast_route.intent == "marine_safety_forecast":
+                  plan.operation = "ASSESS"
+              elif fast_route.intent == "marine_conditions":
+                  plan.operation = "ASSESS"
+              elif fast_route.intent == "productivity_analysis":
+                  plan.operation = "ASSESS"
               
           t_total_ms = (time.perf_counter() - t0_route) * 1000.0
           timings = {

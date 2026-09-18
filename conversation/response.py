@@ -155,8 +155,19 @@ def get_deterministic_clarification(plan: QueryPlan) -> str:
   if getattr(plan, "location_type", None) == "inland" and getattr(plan, "inland_name", None):
     tmpl = CLARIFICATION_TEMPLATES["inland"].get(lang, CLARIFICATION_TEMPLATES["inland"]["en"])
     return tmpl.format(inland_name=plan.inland_name)
+    
+  reason = getattr(plan, "clarification_reason", None)
+  if reason:
+      reason = reason.lower()
+      if reason in CLARIFICATION_TEMPLATES:
+          tmpl = CLARIFICATION_TEMPLATES[reason].get(lang, CLARIFICATION_TEMPLATES[reason]["en"])
+          return tmpl.format(
+              region=plan.region or "the area",
+              reference=plan.reference_location.name if plan.reference_location else "your location",
+              target=plan.target_location.name if plan.target_location else "your destination"
+          )
+          
   return CLARIFICATION_TEMPLATES["missing_location"].get(lang, CLARIFICATION_TEMPLATES["missing_location"]["en"])
-
 
 LANGUAGE_DESCRIPTIONS = {
     "bn-Latn": "Bengali/Banglish (Romanized Bengali, e.g. using Bengali words like 'safe ache', 'somundro', 'hawa', 'na'). Do NOT respond in Hindi.",
@@ -479,7 +490,9 @@ def respond(
   if evidence.get("ranked_candidate_spots"):
     spots_summary = []
     for s in evidence["ranked_candidate_spots"][:3]:
-      spots_summary.append(f"Spot #{s.get('rank')}: {s.get('distance_km')}km {s.get('compass_direction')} (PFZ: {int(s.get('pfz_probability',0)*100)}%, Risk: {s.get('weather_risk')})")
+      p = s.get('pfz_probability')
+      p_val = p if p is not None else 0.0
+      spots_summary.append(f"Spot #{s.get('rank')}: {s.get('distance_km')}km {s.get('compass_direction')} (PFZ: {int(p_val*100)}%, Risk: {s.get('weather_risk')})")
     compact_summary["recommended_spots"] = spots_summary
 
   user_message = f"Query: {query}\nDecision Summary: {compact_summary}"

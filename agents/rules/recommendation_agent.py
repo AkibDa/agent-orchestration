@@ -155,10 +155,10 @@ class RecommendationAgent(BaseAgent):
         }
 
         if pfz_qualified:
-            why_dict["fishing_reason"] = f"PFZ probability is {int(pfz_prob*100)}%"
+            why_dict["fishing_reason"] = f"PFZ probability is {int((pfz_prob if pfz_prob is not None else 0.0)*100)}%"
         else:
             thresh_str = f"below configured threshold ({int(pfz_data.get('decision_threshold', 0.85)*100)}%)" if pfz_prob is not None else "No PFZ data"
-            prob_str = f"{int(pfz_prob*100)}%" if pfz_prob is not None else "Unknown"
+            prob_str = f"{int((pfz_prob if pfz_prob is not None else 0.0)*100)}%" if pfz_prob is not None else "Unknown"
             if pfz_signal_present:
                 why_dict["fishing_reason"] = f"Model-estimated PFZ likelihood: {prob_str}, {thresh_str}. Not identified as a PFZ."
             else:
@@ -474,7 +474,7 @@ class RecommendationAgent(BaseAgent):
         # Build comparison summary
         lines = [f"Based on analyzing {len(evaluations)} locations:"]
         for e in evaluations:
-            lines.append(f"- **{e['name']}**: Safety Risk: {e['risk']} | PFZ Probability: {int(e['prob']*100)}%")
+            lines.append(f"- **{e['name']}**: Safety Risk: {e['risk']} | PFZ Probability: {int((e['prob'] if e['prob'] is not None else 0.0)*100)}%")
 
         lang = getattr(plan, "language", "en")
         if isinstance(lang, Enum):
@@ -496,13 +496,13 @@ class RecommendationAgent(BaseAgent):
             lines.append(recommendation_line + " " + reason)
         else:
             if lang == "bn":
-                reason = f"{winner['name']} সবচেয়ে ভালো অপশন, এখানে {winner['risk']} নিরাপত্তা এবং {int(winner['prob']*100)}% PFZ সম্ভাবনা রয়েছে।"
+                reason = f"{winner['name']} সবচেয়ে ভালো অপশন, এখানে {winner['risk']} নিরাপত্তা এবং {int((winner['prob'] if winner['prob'] is not None else 0.0)*100)}% PFZ সম্ভাবনা রয়েছে।"
             elif lang in ["bn_en", "bn-Latn"]:
-                reason = f"{winner['name']} shobtheke bhalo option, ekhane {winner['risk']} safety condition aar {int(winner['prob']*100)}% PFZ probability ache."
+                reason = f"{winner['name']} shobtheke bhalo option, ekhane {winner['risk']} safety condition aar {int((winner['prob'] if winner['prob'] is not None else 0.0)*100)}% PFZ probability ache."
             elif lang in ["hi", "hi-Latn", "hi_en"]:
-                reason = f"{winner['name']} sabse behtar option hai, yahan {winner['risk']} safety condition aur {int(winner['prob']*100)}% PFZ probability hai."
+                reason = f"{winner['name']} sabse behtar option hai, yahan {winner['risk']} safety condition aur {int((winner['prob'] if winner['prob'] is not None else 0.0)*100)}% PFZ probability hai."
             else:
-                reason = f"{winner['name']} is the best option with {winner['risk']} safety conditions and a {int(winner['prob']*100)}% PFZ probability."
+                reason = f"{winner['name']} is the best option with {winner['risk']} safety conditions and a {int((winner['prob'] if winner['prob'] is not None else 0.0)*100)}% PFZ probability."
             lines.append(f"\nRecommendation: Go to **{winner['name']}**. {reason}")
 
         recommendation_text = "\n".join(lines)
@@ -630,9 +630,9 @@ class RecommendationAgent(BaseAgent):
                 cand_source = pfz_data.get("source", "ORCA_PFZ_MODEL")
 
                 if cand_pfz_present:
-                    pfz_desc = f"Model-estimated PFZ likelihood: {int(cand_pfz_prob*100)}%"
+                    pfz_desc = f"Model-estimated PFZ likelihood: {int((cand_pfz_prob if cand_pfz_prob is not None else 0.0)*100)}%"
                 else:
-                    pfz_desc = f"Model-estimated PFZ likelihood: {int(cand_pfz_prob*100)}%, below threshold ({int(pfz_data.get('decision_threshold', 0.85)*100)}%)"
+                    pfz_desc = f"Model-estimated PFZ likelihood: {int((cand_pfz_prob if cand_pfz_prob is not None else 0.0)*100)}%, below threshold ({int(pfz_data.get('decision_threshold', 0.85)*100)}%)"
 
                 formatted_cand = MarineCandidateIdentity(
                     candidate_id=str(spot.get("id", f"{spot_lat}_{spot_lon}")),

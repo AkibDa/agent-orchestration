@@ -319,7 +319,10 @@ class NearestPFZHandler(HazardAlertHandler):
 class MarineConditionsHandler(HazardAlertHandler):
     def run(self, plan: QueryPlan, engine) -> Dict[str, Any]:
         t0 = time.perf_counter()
-        agents_to_run = ["weather", "ocean_state", "tide"]
+        if getattr(plan, "operation", None) == "ASSESS_WEATHER":
+            agents_to_run = ["weather"]
+        else:
+            agents_to_run = ["weather", "ocean_state", "tide"]
         execution_order = engine.resolve_dependencies(agents_to_run)
         
         candidates = engine.generate_candidates(plan)
@@ -380,7 +383,7 @@ class MarineConditionsHandler(HazardAlertHandler):
         
         tide_status = t_data_full.get("status", "UNAVAILABLE")
         
-        res_type = "CONDITIONS_RESULT"
+        res_type = "WEATHER_RESULT" if getattr(plan, "operation", None) == "ASSESS_WEATHER" else "CONDITIONS_RESULT"
         decision = "CONDITIONS_RETRIEVED"
         reason = "Marine conditions retrieved successfully."
         rec_text = "Marine conditions retrieved successfully."

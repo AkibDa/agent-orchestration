@@ -88,12 +88,12 @@ class OceanStateAgent(BaseAgent):
             timestamp=datetime.now(timezone.utc),
             data=payload,
             confidence=0.85,
-            sources=["INCOIS_ROMS_FORECAST"],
+            sources=["OPEN_METEO"],
             audit=AgentAudit(
                 inputs_used={"lat": lat, "lon": lon},
                 outputs=payload,
                 output_reason="Retrieved marine observation data.",
-                sources=["INCOIS_ROMS_FORECAST"],
+                sources=["OPEN_METEO"],
                 score_source=None,
                 score_reason=None
             )

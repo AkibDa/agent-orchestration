@@ -65,7 +65,8 @@ def rank_fishing_candidates(
         brng = bearing(origin_lat, origin_lon, c_lat, c_lon) if dist > 0 else 0.0
         comp_dir = compass_direction(brng) if dist > 0 else "CENTER"
 
-        pfz_prob = cand.get("pfz_probability", 0.5)
+        pfz_prob = cand.get("pfz_probability")
+        pfz_prob = pfz_prob if pfz_prob is not None else 0.5
         risk_pen = risk_penalties.get(w_risk, 0.5)
         norm_dist_penalty = min(dist / 30.0, 1.0)
         
