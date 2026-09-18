@@ -45,35 +45,6 @@ class WeatherAgent(BaseAgent):
 
         from schemas.contracts import UNKNOWN
 
-        # 1. Query PostGIS DB for latest weather observations (Freshness-aware)
-        obs = None
-        try:
-            if not context.get("_bypass_db_lookup"):
-                from backend.db.marine.observations import get_latest_observations, upsert_observation
-                radius = plan.search_radius_km if plan.search_radius_km else 30.0
-                obs_list = get_latest_observations(lat, lon, radius)
-                obs = obs_list[0] if obs_list else None
-
-            if not obs:
-                # 2. Attempt optional configured external provider
-                from backend.services.data_fetchers.registry import get_weather_provider
-                ext_provider = get_weather_provider()
-                if ext_provider:
-                    fetched_data = ext_provider.fetch_weather(lat, lon, timestamp)
-                    if fetched_data:
-                        try:
-                            upsert_observation(fetched_data)
-                        except Exception as e:
-                            print(f"Failed to upsert weather observation: {e}")
-                        obs = fetched_data
-        except Exception as e:
-            print(f"Weather DB/Provider Query failed: {e}")
-
-        # Update context if DB/Ext Provider returned data
-        if obs:
-            from schemas.contracts import Observation
-            weather_ctx["weather"] = Observation(source="MARINE_DB", quality="OBSERVED", value=obs)
-
         # Convert to primitive dicts for backwards compatibility where needed
         provider_data = {}
         for k, v in weather_ctx.items():

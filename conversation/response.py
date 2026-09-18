@@ -428,7 +428,7 @@ def respond(
   # FAST-PATH DETERMINISTIC RENDERING (From Handlers)
   from conversation.response_generator import generate_multilingual_response
   rec = exec_result.get("recommendation", {})
-  if rec.get("result_type") in ["HAZARD_RESULT", "PFZ_RESULT", "SAFETY_FORECAST_RESULT", "CONDITIONS_RESULT", "PRODUCTIVITY_RESULT", "FISHING_IMPACT_RESULT"]:
+  if rec.get("result_type") in ["HAZARD_RESULT", "PFZ_RESULT", "SAFETY_FORECAST_RESULT", "CONDITIONS_RESULT", "PRODUCTIVITY_RESULT", "FISHING_IMPACT_RESULT", "WEATHER_RESULT"]:
     rec_payload = rec.copy()
     if plan and plan.location:
         rec_payload["latitude"] = plan.location.latitude

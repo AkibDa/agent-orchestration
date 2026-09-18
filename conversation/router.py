@@ -551,7 +551,7 @@ def llm_route_stateful(
 
   # 1. Language Detection timing
   t_lang_start = time.perf_counter()
-  trusted_lang = detect_language(query, prior_language=state.language)
+  trusted_lang = detect_language(query)
   state.language = trusted_lang
   t_lang_ms = (time.perf_counter() - t_lang_start) * 1000.0
 
@@ -804,18 +804,18 @@ def _plan_from_state(raw_query: str, state: ConversationState, extract_location_
 
   loc_source = None
 
-  if fallback_location:
-    locations_list.append(LocationItem(text=fallback_location, role=LocationRole.TARGET))
-    seen_locs.add(fallback_location)
-    loc_source = "structured_request"
-
   if current_extraction and getattr(current_extraction, "locations", []):
     for loc_item in current_extraction.locations:
       if loc_item.text and loc_item.text not in seen_locs:
         locations_list.append(loc_item)
         seen_locs.add(loc_item.text)
-    if not loc_source:
+    if locations_list:
       loc_source = "query"
+
+  if not locations_list and fallback_location:
+    locations_list.append(LocationItem(text=fallback_location, role=LocationRole.TARGET))
+    seen_locs.add(fallback_location)
+    loc_source = "structured_request"
 
   if not locations_list:
     if state.target_location_text and state.target_location_text not in seen_locs:
