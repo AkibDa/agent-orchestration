@@ -134,6 +134,18 @@ CLARIFICATION_TEMPLATES = {
     "bn-Latn": "Apni {reference}-ke {region}-er kon jaygar sathe compare korte chan? Please oi 2to jaygar naam bolun.",
     "bn": "আপনি {reference} কে {region} এর কোন জায়গার সাথে তুলনা করতে চান? অনুগ্রহ করে ওই ২টো জায়গার নাম বলুন।",
     "en": "Which locations in {region} do you want to compare with {reference}? Please provide the names of the 2 candidate spots."
+  },
+  "missing_destination": {
+    "hi-Latn": "Mere paas {reference} starting point hai. Kis destination ya fishing area tak safe route plan karna hai?",
+    "bn-Latn": "Amar kache {reference} theke starting point ache. Kon destination ba fishing area-te safe route plan korbo?",
+    "bn": "আমার কাছে {reference} থেকে শুরু করার স্থান আছে। কোন গন্তব্য বা মাছ ধরার এলাকায় নিরাপদ রুট প্ল্যান করব?",
+    "en": "I have {reference} as the starting point. What destination or fishing area should I plan the safe route to?"
+  },
+  "missing_origin": {
+    "hi-Latn": "Mere paas {target} destination hai. Aap route kahan se shuru kar rahe hain?",
+    "bn-Latn": "Amar kache {target} destination ache. Apni kotha theke route shuru korchen?",
+    "bn": "আমার কাছে {target} গন্তব্য আছে। আপনি কোথা থেকে রুট শুরু করছেন?",
+    "en": "I have {target} as the destination. Where are you starting the route from?"
   }
 }
 
@@ -143,8 +155,19 @@ def get_deterministic_clarification(plan: QueryPlan) -> str:
   if getattr(plan, "location_type", None) == "inland" and getattr(plan, "inland_name", None):
     tmpl = CLARIFICATION_TEMPLATES["inland"].get(lang, CLARIFICATION_TEMPLATES["inland"]["en"])
     return tmpl.format(inland_name=plan.inland_name)
+    
+  reason = getattr(plan, "clarification_reason", None)
+  if reason:
+      reason = reason.lower()
+      if reason in CLARIFICATION_TEMPLATES:
+          tmpl = CLARIFICATION_TEMPLATES[reason].get(lang, CLARIFICATION_TEMPLATES[reason]["en"])
+          return tmpl.format(
+              region=plan.region or "the area",
+              reference=plan.reference_location.name if plan.reference_location else "your location",
+              target=plan.target_location.name if plan.target_location else "your destination"
+          )
+          
   return CLARIFICATION_TEMPLATES["missing_location"].get(lang, CLARIFICATION_TEMPLATES["missing_location"]["en"])
-
 
 LANGUAGE_DESCRIPTIONS = {
     "bn-Latn": "Bengali/Banglish (Romanized Bengali, e.g. using Bengali words like 'safe ache', 'somundro', 'hawa', 'na'). Do NOT respond in Hindi.",
@@ -222,6 +245,15 @@ def generate_clarification_response(
     if reason == "MISSING_COMPARISON_CANDIDATES":
         tmpl = CLARIFICATION_TEMPLATES["missing_comparison_candidates"][lang]
         return validate_response_script(tmpl.format(reference=ref_loc or "apnar location", region=region or "ai onchol"), lang)
+        
+    if reason == "MISSING_DESTINATION":
+        tmpl = CLARIFICATION_TEMPLATES["missing_destination"][lang]
+        return validate_response_script(tmpl.format(reference=ref_loc or "your location"), lang)
+        
+    if reason == "MISSING_ORIGIN":
+        target_loc = known_locs.get("target", "")
+        tmpl = CLARIFICATION_TEMPLATES["missing_origin"][lang]
+        return validate_response_script(tmpl.format(target=target_loc or "the requested destination"), lang)
         
     if reason == "MISSING_LOCATION":
         if region:
@@ -458,7 +490,9 @@ def respond(
   if evidence.get("ranked_candidate_spots"):
     spots_summary = []
     for s in evidence["ranked_candidate_spots"][:3]:
-      spots_summary.append(f"Spot #{s.get('rank')}: {s.get('distance_km')}km {s.get('compass_direction')} (PFZ: {int(s.get('pfz_probability',0)*100)}%, Risk: {s.get('weather_risk')})")
+      p = s.get('pfz_probability')
+      p_val = p if p is not None else 0.0
+      spots_summary.append(f"Spot #{s.get('rank')}: {s.get('distance_km')}km {s.get('compass_direction')} (PFZ: {int(p_val*100)}%, Risk: {s.get('weather_risk')})")
     compact_summary["recommended_spots"] = spots_summary
 
   user_message = f"Query: {query}\nDecision Summary: {compact_summary}"

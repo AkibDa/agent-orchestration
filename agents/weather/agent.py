@@ -91,8 +91,7 @@ class WeatherAgent(BaseAgent):
         if weather_dict and isinstance(weather_dict, dict):
             if "wind_speed_ms" in weather_dict:
                 has_valid_inputs = True
-                src = weather_ctx["weather"].source if hasattr(weather_ctx["weather"], "source") else "UNKNOWN_PROVIDER"
-                source_list.extend([src, "ORCA_XGBOOST_WEATHER_v4"])
+                source_list.extend(["OPEN_METEO"])
 
         if not has_valid_inputs:
             from schemas.contracts import AgentAudit

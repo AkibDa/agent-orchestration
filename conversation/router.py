@@ -39,6 +39,7 @@ OPERATION_AGENTS = {
   "SELECT_BEST_FISHING_OPTION": ["risk", "pfz", "weather", "ocean", "geospatial", "safety_rules", "recommendation"],
   "NEAREST_PFZ_SEARCH": ["risk", "pfz", "weather", "ocean", "geospatial", "safety_rules", "recommendation"],
   "FISHING_SAFETY_TRADEOFF": ["risk", "pfz", "weather", "ocean", "safety_rules", "recommendation"],
+  "ROUTE_TO_FISHING_AREA": ["risk", "weather", "ocean", "geospatial", "safety_rules", "recommendation"],
 }
 
 INTENT_RESULT_TYPES = {
@@ -99,11 +100,29 @@ def detect_special_operations(raw_query: str, extraction=None) -> str | None:
     if len(regions_found) >= 2 or (has_comp_kw and len(regions_found) >= 1) or (locs_count >= 2 and has_comp_kw):
         return "COMPARE_FISHING_REGIONS"
 
+    search_spot_kws = ["which area", "which spot", "which location", "where to fish", "choose area", "best area", "fishing spot", "which zone", "best spot", "where should", "which fishing area"]
+    if any(kw in q_low for kw in search_spot_kws) or (has_comp_kw and locs_count <= 1):
+        return "FIND_FISHING_SPOTS"
+
+    route_kws = [
+        "safest route", "safe route", "route for a vessel", "navigate", "safe navigation", "route",
+        "raasta", "marg", "रास्ता", "मार्ग", "रूट", "सुरक्षित रास्ता", # Hindi/Hinglish
+        "rasta", "poth", "রাস্তা", "পথ", "নিরাপদ রুট" # Bengali/Benglish
+    ]
+    if any(kw in q_low for kw in route_kws):
+        return "ROUTE_TO_FISHING_AREA"
+
     has_env_kw = any(kw in q_low for kw in ["chlorophyll", "sst", "temperature", "tapmatra", "tapman"])
     print(f"DEBUG: q_low={q_low}, has_env_kw={has_env_kw}")
     if has_env_kw and not "pfz" in q_low:
         print("DEBUG: returning PRODUCTIVITY_ANALYSIS")
         return "PRODUCTIVITY_ANALYSIS"
+
+    weather_only_kws = ["weather", "mausam", "aabohawa", "abohawa", "temperature", "rain", "wind", "cloud"]
+    ocean_kws = ["tide", "wave", "joar", "bhata", "jowar", "dhau", "sea", "ocean", "samundar", "somudro", "current", "sst", "surface"]
+    if any(kw in q_low for kw in weather_only_kws) and not any(kw in q_low for kw in ocean_kws):
+        if extraction.intent.value in ("marine_conditions", "unknown"):
+            return "ASSESS_WEATHER"
 
     return None
 
@@ -299,26 +318,27 @@ def build_query_plan(raw_query: str, extraction: ExtractionResult, extract_locat
               ext_count = int(c_match2.group(1))
 
   locations_list = getattr(extraction, "locations", [])
-
-  op = detect_special_operations(raw_query, extraction)
   current_intent = extraction.intent.value
-  if not op:
-    if current_intent in ("marine_geography", "nearest_coast"):
-      op = "DISTANCE_TO_COAST"
-    elif current_intent in ("nearest_pfz", "pfz_search"):
-      op = "NEAREST_PFZ_SEARCH" if current_intent == "nearest_pfz" else "FIND_FISHING_SPOTS"
-    elif current_intent == "fishing_zone_analysis":
-      op = "COMPARE_FISHING_REGIONS"
-    elif current_intent == "safe_route":
+  
+  if current_intent == "safe_route":
       op = "ROUTE_TO_FISHING_AREA"
-    elif current_intent == "productivity_analysis":
-      op = "FIND_FISHING_SPOTS"
-    elif current_intent == "hazardous_zone_filter":
-      op = "SAFE_ALTERNATIVE_ZONE"
-    elif current_intent == "hazard_alert":
-      op = "ASSESS_HAZARD"
-    else:
-      op = "ASSESS"
+  else:
+      op = detect_special_operations(raw_query, extraction)
+      if not op:
+        if current_intent in ("marine_geography", "nearest_coast"):
+          op = "DISTANCE_TO_COAST"
+        elif current_intent in ("nearest_pfz", "pfz_search"):
+          op = "NEAREST_PFZ_SEARCH" if current_intent == "nearest_pfz" else "FIND_FISHING_SPOTS"
+        elif current_intent == "fishing_zone_analysis":
+          op = "COMPARE_FISHING_REGIONS"
+        elif current_intent == "productivity_analysis":
+          op = "FIND_FISHING_SPOTS"
+        elif current_intent == "hazardous_zone_filter":
+          op = "SAFE_ALTERNATIVE_ZONE"
+        elif current_intent == "hazard_alert":
+          op = "ASSESS_HAZARD"
+        else:
+          op = "ASSESS"
 
   loc_req = True
   if op in ("TEMPORAL_PFZ_GUIDANCE", "COMPARE_FISHING_REGIONS", "COMPARE_LOCATIONS", "FISHING_SAFETY_TRADEOFF", "GENERAL_MARINE_QUERY"):
@@ -418,6 +438,19 @@ def resolve_action(result: ExtractionResult, plan: QueryPlan) -> str:
   if plan.operation in ("TEMPORAL_PFZ_GUIDANCE", "COMPARE_FISHING_REGIONS", "COMPARE_LOCATIONS", "DISTANCE_TO_COAST"):
     plan.readiness_status = "CAN_EXECUTE"
     return "ORCA_QUERY"
+
+  if plan.operation == "ROUTE_TO_FISHING_AREA":
+      if not plan.target_location:
+          plan.clarification_reason = "MISSING_DESTINATION"
+          plan.readiness_status = "NEED_DESTINATION"
+          return "CLARIFY"
+      if not plan.location and not plan.reference_location:
+          plan.clarification_reason = "MISSING_ORIGIN"
+          plan.readiness_status = "NEED_ORIGIN"
+          return "CLARIFY"
+      plan.readiness_status = "CAN_EXECUTE"
+      return "ORCA_QUERY"
+
   if plan.spatial_constraint and (plan.target_location or plan.reference_location):
     plan.readiness_status = "CAN_EXECUTE"
     return "ORCA_QUERY"
@@ -566,17 +599,18 @@ def llm_route_stateful(
           state.merge(fast_result)
           plan = _plan_from_state(query, state, extract_location_fn, current_extraction=fast_result, fallback_location=fallback_location)
           
-          # Overwrite operations to match the fast intent
-          if fast_route.intent == "hazard_alert":
-              plan.operation = "ASSESS_HAZARD"
-          elif fast_route.intent == "nearest_pfz":
-              plan.operation = "NEAREST_PFZ_SEARCH"
-          elif fast_route.intent == "marine_safety_forecast":
-              plan.operation = "ASSESS"
-          elif fast_route.intent == "marine_conditions":
-              plan.operation = "ASSESS"
-          elif fast_route.intent == "productivity_analysis":
-              plan.operation = "ASSESS"
+          # Overwrite operations to match the fast intent, but preserve specialized operations
+          if plan.operation in (None, "ASSESS"):
+              if fast_route.intent == "hazard_alert":
+                  plan.operation = "ASSESS_HAZARD"
+              elif fast_route.intent == "nearest_pfz":
+                  plan.operation = "NEAREST_PFZ_SEARCH"
+              elif fast_route.intent == "marine_safety_forecast":
+                  plan.operation = "ASSESS"
+              elif fast_route.intent == "marine_conditions":
+                  plan.operation = "ASSESS"
+              elif fast_route.intent == "productivity_analysis":
+                  plan.operation = "ASSESS"
               
           t_total_ms = (time.perf_counter() - t0_route) * 1000.0
           timings = {

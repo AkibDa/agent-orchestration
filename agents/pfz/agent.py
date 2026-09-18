@@ -86,7 +86,6 @@ class PFZAgent(BaseAgent):
 
         from data_sources.incois import get_pfz_advisory
 
-        # 1. Try Official INCOIS PFZ Advisory First
         candidates = get_pfz_advisory(lat, lon, count=plan.count)
         if candidates:
             # If we have official candidates near the user, we consider PFZ present

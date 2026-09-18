@@ -48,7 +48,13 @@ def find_optimal_fishing_route_astar(
         c_lat = cand["latitude"]
         c_lon = cand["longitude"]
         dist = cand.get("distance_km", haversine_distance(origin_lat, origin_lon, c_lat, c_lon))
-        pfz_prob = cand.get("pfz_probability", 0.5)
+        raw_pfz_prob = cand.get("pfz_probability")
+        if raw_pfz_prob is not None:
+            pfz_prob_score = float(raw_pfz_prob)
+        elif cand.get("source") in ("INCOIS_LIVE", "INCOIS_OFFICIAL"):
+            pfz_prob_score = 1.0
+        else:
+            pfz_prob_score = 0.5
         w_risk = cand.get("weather_risk", "NORMAL")
         is_restr, restr_name = is_eez_restricted(c_lat, c_lon)
 
@@ -58,7 +64,7 @@ def find_optimal_fishing_route_astar(
 
         cost = compute_node_cost(
             distance_km=dist,
-            pfz_prob=pfz_prob,
+            pfz_prob=pfz_prob_score,
             weather_risk=w_risk,
             is_restricted=is_restr
         )

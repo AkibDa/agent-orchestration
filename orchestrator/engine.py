@@ -289,7 +289,7 @@ class OrcaOrchestrator:
         coastal = LOCATION_METADATA.get(loc_name, {}).get("coastal_access", True) if loc_name else True
 
         # If the origin is likely inland, project 8 candidates offshore
-        if not coastal or plan.operation in ("FIND_FISHING_SPOTS", "NEAREST_PFZ_SEARCH"):
+        if not coastal or plan.operation in ("FIND_FISHING_SPOTS", "NEAREST_PFZ_SEARCH", "SELECT_BEST_FISHING_OPTION"):
             candidates = []
             for b in [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]:
                 lat, lon = offset_coordinate(loc.latitude, loc.longitude, 20.0, b)
@@ -301,7 +301,7 @@ class OrcaOrchestrator:
         from orchestrator.handlers import SPECIALIZED_HANDLERS
         handler = SPECIALIZED_HANDLERS.get(plan.intent)
         print(f"DEBUG engine.py: plan.intent is {plan.intent}, type {type(plan.intent)}, handler found: {handler}")
-        if handler:
+        if handler and plan.operation not in ("SELECT_BEST_FISHING_OPTION", "COMPARE_FISHING_REGIONS", "FIND_FISHING_SPOTS"):
             return handler.run(plan, self)
 
         t0_orc = time.perf_counter()
