@@ -53,6 +53,15 @@ def detect_specialized_capability(query_text: str, language: str) -> FastRouteRe
     """
     query_lower = query_text.lower()
     
+    # Explicit route queries should not be fast-routed as they require A* execution
+    route_kws = [
+        "safest route", "safe route", "route for a vessel", "navigate", "safe navigation", "route",
+        "raasta", "marg", "रास्ता", "मार्ग", "रूट", "सुरक्षित रास्ता", # Hindi/Hinglish
+        "rasta", "poth", "রাস্তা", "পথ", "নিরাপদ রুট" # Bengali/Benglish
+    ]
+    if any(kw in query_lower for kw in route_kws):
+        return FastRouteResult(matched=False, intent=None, confidence=0.0)
+    
     # Normalize language mapping slightly
     lang = language.lower()
     if lang in ["bn_en", "bn-latn"]:

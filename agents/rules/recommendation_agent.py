@@ -85,7 +85,7 @@ class RecommendationAgent(BaseAgent):
 
         # Process Spatial Candidate Grid Search if Geospatial Agent generated candidate points
         candidate_points = geospatial_data.get("candidate_grid_points", [])
-        spatial_intents = {"pfz_search", "marine_conditions", "marine_safety", "hazard_alert", "general_fishing_query", "fishing_search", "route_search"}
+        spatial_intents = {"pfz_search", "marine_conditions", "marine_safety", "hazard_alert", "general_fishing_query", "fishing_search", "route_search", "marine_safety_forecast", "productivity_analysis", "fishing_zone_analysis"}
 
         # 1. Official PFZ Candidates
         official_candidates = pfz_data.get("candidates", [])
@@ -181,7 +181,7 @@ class RecommendationAgent(BaseAgent):
             why_dict["primary_reason"] = f"Geospatial distance calculation complete to {n_coast}."
             confidence = 0.99
             ranked_candidates = []
-        elif plan.operation in ("SELECT_BEST_FISHING_OPTION", "NEAREST_PFZ_SEARCH"):
+        elif plan.operation in ("SELECT_BEST_FISHING_OPTION", "NEAREST_PFZ_SEARCH", "FIND_FISHING_SPOTS"):
             if not candidate_evals:
                 action_code = "UNAVAILABLE_PFZ"
                 action_title = "PFZ DATA UNAVAILABLE"

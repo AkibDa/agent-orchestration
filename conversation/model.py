@@ -12,6 +12,7 @@ from schemas.extraction import ExtractionResult
 
 CUDA_MODEL_ID = "unsloth/Qwen3-4B-Instruct-2507-bnb-4bit"
 MLX_MODEL_ID = "mlx-community/Qwen3-4B-Instruct-2507-4bit"
+ORCA_CPU_MODEL_PATH= "/Users/skakibahammed/code_playground/agent-orchestration/models/qwen3-4b-instruct.gguf"
 
 @dataclass
 class LLMStats:
@@ -37,17 +38,25 @@ def _cuda_available() -> bool:
 
 
 class ConversationModel:
-  def __init__(self):
+  def __init__(self, backend: Optional[str] = None):
 
     self.last_extract_stats: Optional[LLMStats] = None
     self.last_generate_stats: Optional[LLMStats] = None
 
-    if _cuda_available():
-      self.backend = "cuda"
+    if backend is None:
+        import os
+        backend = os.getenv("ORCA_MODEL_BACKEND", "cuda" if _cuda_available() else "mlx").lower()
+
+    self.backend = backend
+
+    if self.backend == "cuda":
       self._init_cuda()
-    else:
-      self.backend = "mlx"
+    elif self.backend == "mlx":
       self._init_mlx()
+    elif self.backend == "cpu":
+      self._init_cpu()
+    else:
+      raise ValueError(f"Unknown backend: {self.backend}")
 
     print(f"Conversation backend: {self.backend}")
 
@@ -71,6 +80,77 @@ class ConversationModel:
 
     self.model.eval()
     print("CUDA Qwen model loaded successfully.")
+
+  # ============================================================
+  # CPU INIT
+  # ============================================================
+
+  def _init_cpu(self):
+    import os
+    import time
+    import psutil
+    try:
+        from llama_cpp import Llama
+    except ImportError:
+        raise ImportError("CPU backend selected but llama-cpp-python is not installed.\nInstall with: CMAKE_ARGS=\"-DGGML_METAL=OFF\" pip install llama-cpp-python")
+    
+    model_path = os.getenv("ORCA_CPU_MODEL_PATH")
+    
+    print("════════════════════════════════════════════════")
+    print("ORCA MODEL CONFIGURATION")
+    print("════════════════════════════════════════════════")
+    print("Backend       : CPU")
+    print("Model         : Qwen3-4B-Instruct-2507")
+    print("Quantization  : Q4_K_M")
+    print("Runtime       : llama.cpp")
+    print("GPU offload   : DISABLED")
+    
+    if model_path:
+        model_source = "local override (ORCA_CPU_MODEL_PATH)"
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"CPU model not found at overridden path: {model_path}")
+        print("[MODEL] Using manual model override")
+    else:
+        repo_id = "unsloth/Qwen3-4B-Instruct-2507-GGUF"
+        filename = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+        try:
+            from huggingface_hub import hf_hub_download
+        except ImportError:
+            raise ImportError("CPU auto-download requires huggingface_hub. Install with: pip install huggingface_hub")
+            
+        cache_dir = os.path.expanduser("~/.cache/orca/models/")
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        print(f"[MODEL] CPU model: Qwen3-4B-Instruct-2507 Q4_K_M")
+        print(f"[MODEL] Model cache: {cache_dir}")
+        print(f"[MODEL] Downloading/Locating {repo_id} {filename}...")
+        
+        model_path = hf_hub_download(repo_id=repo_id, filename=filename, cache_dir=cache_dir)
+        print("[MODEL] Model found locally or download complete")
+        model_source = "local cache / downloaded"
+
+    threads = int(os.getenv("ORCA_CPU_THREADS", "4"))
+    context_size = int(os.getenv("ORCA_CPU_CONTEXT", "4096"))
+    
+    print(f"CPU threads   : {threads}")
+    print(f"Context       : {context_size}")
+    print(f"Model source  : {model_source}")
+    print("════════════════════════════════════════════════")
+    print("[MODEL] Loading CPU model...")
+    
+    t0 = time.time()
+    self.model = Llama(
+        model_path=model_path,
+        n_gpu_layers=0,
+        n_threads=threads,
+        n_ctx=context_size,
+        verbose=False
+    )
+    load_time = time.time() - t0
+    
+    ram_mb = psutil.Process().memory_info().rss / (1024 * 1024)
+    print(f"[CPU BENCH] Model load time: {load_time:.2f}s")
+    print(f"[CPU BENCH] Model RAM: {ram_mb:.1f} MB")
 
   # ============================================================
   # MLX INIT
@@ -140,6 +220,8 @@ class ConversationModel:
 
     if self.backend == "cuda":
       return self._extract_cuda(system_prompt, user_message)
+    elif self.backend == "cpu":
+      return self._extract_cpu(system_prompt, user_message)
     return self._extract_mlx(system_prompt, user_message)
 
   # ============================================================
@@ -201,6 +283,57 @@ class ConversationModel:
       total_tokens=total_tokens,
       latency_sec=elapsed,
       tokens_per_sec=tokens_per_sec,
+    )
+
+    return self._parse_extraction(raw_output)
+
+  # ============================================================
+  # CPU EXTRACTION
+  # ============================================================
+
+  def _extract_cpu(self, system_prompt: str, user_message: str) -> ExtractionResult:
+    import time
+    t0 = time.perf_counter()
+    
+    messages = [
+      {"role": "system", "content": system_prompt},
+      {"role": "user", "content": user_message},
+    ]
+    
+    response = self.model.create_chat_completion(
+        messages=messages,
+        max_tokens=200,
+        temperature=0.0,
+        stream=False
+    )
+    
+    elapsed = time.perf_counter() - t0
+    
+    usage = response['usage']
+    prompt_tokens = usage['prompt_tokens']
+    completion_tokens = usage['completion_tokens']
+    total_tokens = usage['total_tokens']
+    
+    raw_output = response['choices'][0]['message']['content'].strip()
+    
+    tokens_per_sec = completion_tokens / elapsed if elapsed > 0 else 0.0
+    
+    print("[CPU BENCH] Extraction")
+    print(f"Prompt tokens: {prompt_tokens}")
+    print(f"Generated tokens: {completion_tokens}")
+    print(f"Prompt processing time: N/A (Not exposed by llama-cpp-python)")
+    print(f"Generation time: N/A (Not exposed by llama-cpp-python)")
+    print(f"Total extraction time: {elapsed:.2f}s")
+    print(f"Generation tokens/sec: {tokens_per_sec:.2f}")
+
+    self.last_extract_stats = LLMStats(
+        stage="INTAKE_EXTRACTION",
+        raw_output=raw_output,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+        latency_sec=elapsed,
+        tokens_per_sec=tokens_per_sec,
     )
 
     return self._parse_extraction(raw_output)
@@ -433,6 +566,10 @@ class ConversationModel:
       return self._generate_text_cuda(
         system_prompt, user_message, max_new_tokens, temperature,
       )
+    elif self.backend == "cpu":
+      return self._generate_text_cpu(
+        system_prompt, user_message, max_new_tokens, temperature,
+      )
     return self._generate_text_mlx(
       system_prompt, user_message, max_new_tokens, temperature,
     )
@@ -490,6 +627,63 @@ class ConversationModel:
     completion_tokens = len(new_tokens)
     total_tokens = prompt_tokens + completion_tokens
     tokens_per_sec = completion_tokens / elapsed if elapsed > 0 else 0.0
+
+    self.last_generate_stats = LLMStats(
+      stage="RESPONSE_SYNTHESIS",
+      raw_output=text,
+      prompt_tokens=prompt_tokens,
+      completion_tokens=completion_tokens,
+      total_tokens=total_tokens,
+      latency_sec=elapsed,
+      tokens_per_sec=tokens_per_sec,
+    )
+
+    return text
+
+  # ============================================================
+  # CPU TEXT GENERATION
+  # ============================================================
+
+  def _generate_text_cpu(
+    self,
+    system_prompt: str,
+    user_message: str,
+    max_new_tokens: int,
+    temperature: float,
+  ) -> str:
+    import time
+    t0 = time.perf_counter()
+    
+    messages = [
+      {"role": "system", "content": system_prompt},
+      {"role": "user", "content": user_message},
+    ]
+    
+    response = self.model.create_chat_completion(
+        messages=messages,
+        max_tokens=max_new_tokens,
+        temperature=temperature,
+        stream=False
+    )
+    
+    elapsed = time.perf_counter() - t0
+    
+    usage = response['usage']
+    prompt_tokens = usage['prompt_tokens']
+    completion_tokens = usage['completion_tokens']
+    total_tokens = usage['total_tokens']
+    
+    text = response['choices'][0]['message']['content'].strip()
+    
+    tokens_per_sec = completion_tokens / elapsed if elapsed > 0 else 0.0
+    
+    print("[CPU BENCH] Generation")
+    print(f"Prompt tokens: {prompt_tokens}")
+    print(f"Generated tokens: {completion_tokens}")
+    print(f"Prompt processing time: N/A (Not exposed by llama-cpp-python)")
+    print(f"Generation time: N/A (Not exposed by llama-cpp-python)")
+    print(f"Total generation time: {elapsed:.2f}s")
+    print(f"Generation tokens/sec: {tokens_per_sec:.2f}")
 
     self.last_generate_stats = LLMStats(
       stage="RESPONSE_SYNTHESIS",
@@ -578,5 +772,5 @@ def get_conversation_model():
       from .model_cuda import get_conversation_model_cuda
       _singleton = get_conversation_model_cuda()
     else:
-      _singleton = ConversationModel()
+      _singleton = ConversationModel(backend=backend)
   return _singleton
