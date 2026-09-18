@@ -215,9 +215,16 @@ class PFZAgent(BaseAgent):
         best_prob = -1.0
         best_lat, best_lon = nearest_lat, nearest_lon
 
+        try:
+            from global_land_mask import globe
+        except ImportError:
+            globe = None
+
         # Project outward to generate marine candidates (e.g. 15km offshore in different bearings)
         for b in [0.0, 90.0, 180.0, 270.0]:
             cand_lat, cand_lon = offset_coordinate(nearest_lat, nearest_lon, 15.0, b)
+            if globe and globe.is_land(cand_lat, cand_lon):
+                continue
             payload = predict(lat=cand_lat, lon=cand_lon, timestamp=timestamp, env_data=env_data)
             prob = payload["pfz_probability"]
             if prob > best_prob:

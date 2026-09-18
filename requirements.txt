@@ -203,4 +203,5 @@ xarray==2026.7.0
 xgboost==3.4.1
 xlrd==2.0.2
 yarl==1.24.5
+html5lib
 zarr==3.3.0

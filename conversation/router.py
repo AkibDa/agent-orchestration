@@ -322,6 +322,8 @@ def build_query_plan(raw_query: str, extraction: ExtractionResult, extract_locat
   
   if current_intent == "safe_route":
       op = "ROUTE_TO_FISHING_AREA"
+  elif current_intent == "nearest_pfz":
+      op = "NEAREST_PFZ_SEARCH"
   else:
       op = detect_special_operations(raw_query, extraction)
       if not op:
