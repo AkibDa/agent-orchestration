@@ -13,6 +13,8 @@ class TideAgent(BaseAgent):
     def run(self, plan: QueryPlan, context: Dict[str, AgentResult]) -> AgentResult:
         loc = plan.target_location or plan.location or plan.reference_location
         if not loc:
+            with open("tide_real_error.log", "w") as f:
+                f.write("ERROR: loc is None\n")
             return AgentResult(
                 agent=self.name,
                 status="ERROR",
@@ -110,11 +112,19 @@ class TideAgent(BaseAgent):
                     }
                 }
                 
-                status_code = "AVAILABLE"
+                status_code = "SUCCESS"
                 confidence = 0.95
                 output_reason = "Tide data retrieved from OPEN_METEO."
                 
         except Exception as e:
+            import traceback
+            with open("tide_real_error.log", "w") as f:
+                f.write(f"Exception: {str(e)}\n")
+                traceback.print_exc(file=f)
+                f.write(f"target_time: {target_time}\n")
+                if 'closest_idx' in locals():
+                    f.write(f"closest_idx: {closest_idx}\n")
+            
             tide_data = {
                 "status": "UNAVAILABLE",
                 "current_phase": None,
