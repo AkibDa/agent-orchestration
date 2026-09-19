@@ -598,21 +598,21 @@ def generate_multilingual_response(recommendation_result: Dict[str, Any], langua
         
         if lang == "bn-Latn":
             return _make_segments([
-                (f"**{loc_name}-r kachhakachhi aaj samudrer obostha:** ", []),
+                (f"{loc_name}-r kachhakachhi aaj samudrer obostha\n\n", []),
                 (tide_bn_en, ["tide"]),
                 (f"Weather {temp}°C, cloud cover {cloud}%, {precip_str_bn_en}. Wind {w_speed} m/s, direction {w_dir}°. ", ["weather"]),
                 (f"Wave {w_height} m, period {w_period} s. SST {sst}°C, surface current {curr_str_bn_en}.", ["ocean_state"])
             ])
         elif lang == "hi-Latn":
             return _make_segments([
-                (f"**{loc_name} ke paas aaj samundar ki haalat:** ", []),
+                (f"{loc_name} ke paas aaj samundar ki haalat\n\n", []),
                 (tide_hi, ["tide"]),
                 (f"Weather {temp}°C, cloud cover {cloud}%, {precip_str_hi}. Wind {w_speed} m/s, direction {w_dir}°. ", ["weather"]),
                 (f"Wave {w_height} m, period {w_period} s. SST {sst}°C, surface current {curr_str_hi}.", ["ocean_state"])
             ])
         else:
             return _make_segments([
-                (f"**Marine conditions near {loc_name}:** ", []),
+                (f"Marine conditions near {loc_name}\n\n", []),
                 (tide_en, ["tide"]),
                 (f"Weather: {temp}°C, {cloud}% cloud cover, {precip_str_en}. Wind: {w_speed} m/s from {w_dir}°. ", ["weather"]),
                 (f"Waves: {w_height} m, period {w_period} s. SST: {sst}°C, surface current {curr_str_en}.", ["ocean_state"])
@@ -634,17 +634,17 @@ def generate_multilingual_response(recommendation_result: Dict[str, Any], langua
         
         if lang == "bn-Latn":
             return _make_segments([
-                (f"**{loc_name}-r kachhakachhi aaj abohawa:** ", []),
+                (f"{loc_name}-r kachhakachhi aaj abohawa\n\n", []),
                 (f"Temperature {temp}°C, cloud cover {cloud}%, {precip_str_bn_en}. Wind {w_speed} m/s, direction {w_dir}°.", ["weather"])
             ])
         elif lang == "hi-Latn":
             return _make_segments([
-                (f"**{loc_name} ke paas aaj mausam:** ", []),
+                (f"{loc_name} ke paas aaj mausam\n\n", []),
                 (f"Temperature {temp}°C, cloud cover {cloud}%, {precip_str_hi}. Wind {w_speed} m/s, direction {w_dir}°.", ["weather"])
             ])
         else:
             return _make_segments([
-                (f"**Weather near {loc_name}:** ", []),
+                (f"Weather near {loc_name}\n\n", []),
                 (f"{temp}°C, {cloud}% cloud cover, {precip_str_en}. Wind: {w_speed} m/s from {w_dir}°.", ["weather"])
             ])
             

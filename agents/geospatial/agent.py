@@ -38,7 +38,6 @@ class GeospatialAgent(BaseAgent):
         is_fishing_search = plan.operation in ("SELECT_BEST_FISHING_OPTION", "NEAREST_PFZ_SEARCH", "ROUTE_TO_FISHING_AREA", "FIND_FISHING_SPOTS")
         if is_fishing_search:
             if not target_loc:
-                from schemas.contracts import AgentAudit
                 return AgentResult(
                     agent=self.name,
                     status="ERROR",
@@ -163,9 +162,6 @@ class GeospatialAgent(BaseAgent):
                 "distance_km": round(min_dist, 1)
             }
         }
-
-        from schemas.contracts import AgentAudit
-        
         audit_payload = {
             "allowed": payload["allowed"],
             "candidate_grid_points_count": payload["candidate_grid_points_count"]
