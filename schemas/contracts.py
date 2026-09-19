@@ -69,6 +69,7 @@ class QueryPlan(BaseModel):
   location: Optional[GeoLocation] = Field(None, description="Parsed primary spatial context (legacy)")
   reference_location: Optional[GeoLocation] = Field(None, description="Origin/start location where user is starting from")
   target_location: Optional[GeoLocation] = Field(None, description="Target/destination location being assessed")
+  semantic_target: Optional[Any] = Field(None, description="Parsed semantic target definition")
   resolved_locations: List[GeoLocation] = Field(default_factory=list, description="All resolved geographic locations from the query")
   spatial_constraint: Optional[SpatialConstraint] = Field(None, description="Relative spatial constraint offset")
   location_required: bool = Field(True, description="Whether location context is required for operation")
@@ -193,6 +194,9 @@ class MarineCandidateIdentity(BaseModel):
     reference_landmark: Optional[str]
     distance_from_landmark_km: Optional[float]
     bearing_from_landmark: Optional[str]
+    
+    depth_m: Optional[str] = None
+    query_distance_km: Optional[float] = None
     
     pfz_probability: Optional[float]
     pfz_present: bool = False

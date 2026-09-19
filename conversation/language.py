@@ -33,7 +33,7 @@ HINDI_MARKERS = {
     "hai": 2.0, "hain": 2.0, "ho": 2.0, "hoon": 2.0, "thi": 2.0, "tha": 2.0,
     "rahega": 2.0, "hoga": 2.0, "jaayein": 2.0, "karein": 2.0, "batayein": 2.0,
     "kahan": 2.0, "kaunsa": 2.0, "kaun": 2.0, "kya": 2.0, "kaise": 2.0,
-    "kyun": 2.0, "agar": 2.0, "lekin": 2.0, "mein": 2.0, "me": 2.0, "ko": 2.0,
+    "kyun": 2.0, "agar": 2.0, "lekin": 2.0, "mein": 2.0, "ko": 2.0,
     "paas": 2.0, "ka": 2.0, "machli": 2.0, "samundar": 2.0,
     "subah": 2.0, "dopahar": 2.0, "shaam": 2.0, "baarish": 2.0, "sthiti": 2.0,
     "jagaah": 2.0, "wapas": 2.0, "accha": 2.0, "bahut": 2.0, "chahiye": 2.0,

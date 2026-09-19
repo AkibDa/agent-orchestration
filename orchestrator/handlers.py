@@ -633,10 +633,213 @@ class ProductivityAnalysisHandler(HazardAlertHandler):
         t_decision_ms = (time.perf_counter() - t2) * 1000.0
         return self._build_resp(plan, execution_order, context, recommendation, agent_timings, t_domain_ms, t_decision_ms, t0)
 
+
+class SafeRouteHandler(BaseSpecializedHandler):
+    def run(self, plan: QueryPlan, engine) -> Dict[str, Any]:
+        t0 = time.perf_counter()
+        agents_to_run = ["weather", "ocean", "geospatial"]
+        execution_order = engine.resolve_dependencies(agents_to_run)
+        
+        ref_loc = plan.reference_location
+        tgt_loc = plan.target_location
+        
+        target_provenance = "USER_SPECIFIED_LOCATION"
+        
+        if not ref_loc:
+            # Fallback if somehow called without origin
+            return HazardAlertHandler()._error_res(plan, t0, "Origin location is required for routing.")
+            
+        if not tgt_loc:
+            if getattr(plan, "semantic_target", None):
+                from conversation.semantic_target import resolve_semantic_target
+                resolved_loc, prov, act_dist, err = resolve_semantic_target(plan.semantic_target, ref_loc)
+                if err:
+                    return HazardAlertHandler()._error_res(plan, t0, err)
+                if resolved_loc:
+                    tgt_loc = resolved_loc
+                    target_provenance = prov
+                    
+            if not tgt_loc:
+                return HazardAlertHandler()._error_res(plan, t0, "Could not resolve semantic destination to a valid marine location.")
+
+            
+        context = {}
+        cand_plan = plan.model_copy()
+        
+        agent_timings = {}
+        t_domain_ms = 0.0
+        
+        def run_agent(agent_name):
+            if agent_name in engine.registry:
+                return agent_name, engine._run_agent_safely(engine.registry[agent_name], cand_plan, context)
+            return agent_name, (None, 0.0)
+
+        tiers = engine._group_into_tiers(execution_order)
+        for tier in tiers:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future_to_agent = {executor.submit(run_agent, agent_name): agent_name for agent_name in tier}
+                for future in concurrent.futures.as_completed(future_to_agent):
+                    agent_name, (res, elapsed) = future.result()
+                    if res:
+                        context[agent_name] = res
+                        agent_timings[agent_name] = elapsed
+                        t_domain_ms = max(t_domain_ms, elapsed)
+                        
+        weather_res = context.get("weather")
+        w_data_full = weather_res.data if weather_res and weather_res.status in ("SUCCESS", "DEGRADED", "MOCKED", "success") else {}
+        env_data = {
+            "weather_data": w_data_full,
+            "cyclone_data": {}
+        }
+        
+        from agents.geospatial.astar import plan_safe_route_astar
+        from agents.geospatial.distance import haversine_distance
+        
+        route_res = plan_safe_route_astar(
+            start_lat=ref_loc.latitude, start_lon=ref_loc.longitude,
+            goal_lat=tgt_loc.latitude, goal_lon=tgt_loc.longitude,
+            env_data=env_data
+        )
+        
+        direct_dist = haversine_distance(ref_loc.latitude, ref_loc.longitude, tgt_loc.latitude, tgt_loc.longitude)
+        route_dist = route_res.get('total_distance_km', 0.0)
+        detour_km = max(0.0, route_dist - direct_dist)
+        detour_percent = round((detour_km / direct_dist) * 100, 1) if direct_dist > 0 else 0.0
+        
+        goal_reached_str = "YES" if route_res.get('route_status') == 'SUCCESS' else "NO"
+        
+        print("\n════════════ A* ROUTE ANALYSIS ════════════")
+        print("Algorithm          : A*")
+        print(f"Start              : ({ref_loc.latitude}, {ref_loc.longitude})")
+        print(f"Goal               : ({tgt_loc.latitude}, {tgt_loc.longitude})\n")
+        print(f"Graph nodes        : {route_res.get('nodes_evaluated', 0)}")
+        print(f"Blocked nodes      : {route_res.get('restricted_zones_avoided', 0)}")
+        print(f"Hazard penalty nodes: {route_res.get('hazards_encountered', 0)}")
+        print(f"Nodes expanded     : {route_res.get('nodes_evaluated', 0)}")
+        print(f"Path nodes         : {len(route_res.get('route_coordinates', []))}\n")
+        print(f"Direct distance    : {direct_dist:.2f} km")
+        print(f"A* route distance  : {route_dist:.2f} km")
+        print(f"Detour             : {detour_km:.2f} km")
+        print(f"Detour percentage  : {detour_percent}%\n")
+        print(f"Goal reached       : {goal_reached_str}")
+        print("══════════════════════════════════════════\n")
+        
+        weather_res = context.get("weather")
+        ocean_res = context.get("ocean")
+        
+        env_data_ok = True
+        missing_env_agents = []
+        if not weather_res or weather_res.status not in ("SUCCESS", "success"):
+            env_data_ok = False
+            missing_env_agents.append("weather")
+        if not ocean_res or ocean_res.status not in ("SUCCESS", "success"):
+            env_data_ok = False
+            missing_env_agents.append("ocean")
+            
+        route_success = route_res.get('route_status') == 'SUCCESS'
+        
+        if route_success:
+            reason = "Safe route planned with A*."
+            
+            # Primary Fisherman-Facing Section
+            explanation = (
+                f"🧭 Safe Route: {ref_loc.name} → {tgt_loc.name}\n\n"
+                f"ORCA has planned a route of approximately **{route_dist:.1f} km** from {ref_loc.name} to {tgt_loc.name}.\n\n"
+            )
+            
+            if detour_km > 0.5:
+                explanation += (
+                    f"The direct distance is about **{direct_dist:.1f} km**. The additional distance is because "
+                    f"ORCA plans the route while considering areas that may not be suitable for direct travel "
+                    f"and other available navigation-risk information.\n\n"
+                )
+            else:
+                explanation += (
+                    f"The direct distance is about **{direct_dist:.1f} km**, and this route follows nearly the shortest "
+                    f"path while confirming no major blocked zones are in the way.\n\n"
+                )
+
+            # Keep it simple for the text layout, the frontend or agent can expand waypoints
+            explanation += f"**Route:**\n{ref_loc.name} → [waypoints] → {tgt_loc.name}\n\n"
+            
+            # Environmental / Safety Assessment
+            explanation += "**Current marine data:** "
+            if not env_data_ok:
+                explanation += (
+                    "Weather/ocean data is currently unavailable, so ORCA cannot reliably confirm whether "
+                    "present conditions are safe for travel.\n\n"
+                )
+                safety_clearance = "DATA_UNAVAILABLE"
+            else:
+                explanation += (
+                    "Based on available data, marine and weather conditions have been factored into this route.\n\n"
+                )
+                safety_clearance = "CLEARED"
+                
+            explanation += (
+                "**Route status:** Route successfully planned.\n"
+                f"**Safety status:** {'Current conditions unavailable — check updated marine/weather conditions before departure' if not env_data_ok else 'Current conditions factored into route plan'}.\n\n"
+            )
+            
+            # Optional Technical Section
+            explanation += (
+                "---\n**Why this route? (Technical Details)**\n"
+                "ORCA compares possible paths and gives higher cost to routes passing through unsuitable areas, "
+                "then selects a feasible lower-risk path.\n\n"
+                f"Algorithm: A*\n"
+                f"Graph nodes evaluated: {route_res.get('nodes_evaluated', 0)}\n"
+                f"Blocked areas avoided: {route_res.get('restricted_zones_avoided', 0)}\n"
+                f"Hazard penalties encountered: {route_res.get('hazards_encountered', 0)}\n"
+                f"Path nodes: {len(route_res.get('route_coordinates', []))}\n"
+                f"Direct distance: {direct_dist:.1f} km\n"
+                f"A* route distance: {route_dist:.1f} km\n"
+                f"Goal reached: YES\n"
+            )
+            
+            rec_text = explanation
+        else:
+            reason = "No safe route could be found."
+            rec_text = (
+                f"🧭 Safe Route: {ref_loc.name} → {tgt_loc.name}\n\n"
+                "ORCA was unable to find a safe route between the specified origin and destination. "
+                "The destination may be blocked by land or restricted zones."
+            )
+            safety_clearance = "UNKNOWN"
+            
+        recommendation = {
+            "result_type": "ROUTE_RESULT",
+            "decision": "ROUTE_GENERATED" if route_success else "NO_ROUTE",
+            "action_code": "ROUTE_GENERATED" if route_success else "NO_ROUTE",
+            "reason": reason,
+            "recommendation_text": rec_text,
+            "start_name": ref_loc.name,
+            "dest_name": tgt_loc.name,
+            "target_provenance": target_provenance,
+            "start_coordinates": {"latitude": ref_loc.latitude, "longitude": ref_loc.longitude},
+            "destination_coordinates": {"latitude": tgt_loc.latitude, "longitude": tgt_loc.longitude},
+            "waypoints": route_res.get('route_coordinates', []),
+            "direct_distance_km": round(direct_dist, 2),
+            "route_distance_km": round(route_dist, 2),
+            "detour_km": round(detour_km, 2),
+            "detour_percent": detour_percent,
+            "blocked_nodes": route_res.get('restricted_zones_avoided', 0),
+            "hazard_penalty_nodes": route_res.get('hazards_encountered', 0) if env_data_ok else 0,
+            "nodes_expanded": route_res.get('nodes_evaluated', 0),
+            "path_nodes": len(route_res.get('route_coordinates', [])),
+            "obstacles_avoided": route_res.get('restricted_zones_avoided', 0),
+            "environmental_hazards_avoided": route_res.get('hazards_encountered', 0) if env_data_ok else 0,
+            "safety_clearance": safety_clearance,
+            "astar_execution_status": route_res.get('route_status')
+        }
+        
+        # HazardAlertHandler._build_resp handles standard agent execution payload building. We reuse it here.
+        return HazardAlertHandler()._build_resp(plan, execution_order, context, recommendation, agent_timings, t_domain_ms, 0.0, t0)
+
 SPECIALIZED_HANDLERS = {
     "hazard_alert": HazardAlertHandler(),
     "nearest_pfz": NearestPFZHandler(),
     "marine_safety_forecast": MarineSafetyForecastHandler(),
     "marine_conditions": MarineConditionsHandler(),
     "productivity_analysis": ProductivityAnalysisHandler(),
+    "safe_route": SafeRouteHandler(),
 }

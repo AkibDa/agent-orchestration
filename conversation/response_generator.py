@@ -90,6 +90,179 @@ RESPONSE_TEMPLATES = {
     }
 }
 
+def _generate_fishing_candidate_response(recommendation_result: Dict[str, Any], lang: str) -> List[Tuple[str, List[str]]]:
+    ranked_spots = recommendation_result.get("ranked_candidate_spots", [])
+    if not ranked_spots:
+        return []
+        
+    top = ranked_spots[0]
+    
+    # Extract query/reference locations if available
+    why_data = recommendation_result.get("why", {})
+    ref_loc_name = why_data.get("reference_location_name", "your location")
+    query_target = why_data.get("query_target_name", None)
+    
+    # 1. Distances
+    actual_dist = top.get("query_distance_km")
+    if actual_dist is None:
+        actual_dist = top.get("reachability_km", top.get("distance_km", 0.0))
+        
+    requested_dist_text = ""
+    req_dist = None
+    if query_target:
+        import re
+        match = re.search(r"(\d+(?:\.\d+)?)\s*(?:km|kilometer|kilometre)s?", query_target.lower())
+        if match:
+            req_dist = float(match.group(1))
+            if lang == "bn":
+                requested_dist_text = f"আপনার অনুরোধ করা ~{req_dist:.0f} কিমির কাছাকাছি"
+            elif lang == "bn_en":
+                requested_dist_text = f"apnar request kora ~{req_dist:.0f} km er kachakachi"
+            elif lang == "hi-Latn":
+                requested_dist_text = f"aapke request kiye gaye ~{req_dist:.0f} km ke qareeb"
+            else:
+                requested_dist_text = f"closely matching your requested ~{req_dist:.0f} km distance"
+                
+    # 2. Source and Probability
+    source = top.get("source", "")
+    pfz_prob = top.get("pfz_probability")
+    
+    pfz_text_primary = ""
+    pfz_text_why = ""
+    if source == "INCOIS_LIVE":
+        if lang == "bn":
+            pfz_text_primary = "অফিসিয়াল INCOIS অ্যাডভাইজরি উপলব্ধ"
+            pfz_text_why = "এই লোকেশনের জন্য একটি অফিসিয়াল INCOIS অ্যাডভাইজরি উপলব্ধ রয়েছে।"
+        elif lang == "bn_en":
+            pfz_text_primary = "Official INCOIS advisory available"
+            pfz_text_why = "Eai location er jonno ekti official INCOIS advisory available ache."
+        elif lang == "hi-Latn":
+            pfz_text_primary = "Official INCOIS advisory available"
+            pfz_text_why = "Is location ke liye ek official INCOIS Potential Fishing Zone advisory maujood hai."
+        else:
+            pfz_text_primary = "Official INCOIS advisory available"
+            pfz_text_why = "An official INCOIS Potential Fishing Zone advisory is available for this location."
+    elif source == "INCOIS_PFZ_XGBOOST_v1":
+        prob_pct = int(round((pfz_prob if pfz_prob is not None else 0.0) * 100))
+        if lang == "bn":
+            pfz_text_primary = f"মডেল পূর্বাভাসিত সম্ভাব্যতা: {prob_pct}%"
+            pfz_text_why = "সরাসরি অ্যাডভাইজরি না থাকায় ML মডেল দ্বারা মাছ পাওয়ার সম্ভাবনা প্রেডিক্ট করা হয়েছে।"
+        elif lang == "bn_en":
+            pfz_text_primary = f"Model predicted probability: {prob_pct}%"
+            pfz_text_why = "Live data na thakay ML model diye probability predict kora hoyeche."
+        elif lang == "hi-Latn":
+            pfz_text_primary = f"Model predicted probability: {prob_pct}%"
+            pfz_text_why = "Live data na hone par ML model se probability predict ki gayi hai."
+        else:
+            pfz_text_primary = f"Model-estimated PFZ probability: {prob_pct}%"
+            pfz_text_why = "Model-based prediction was used since no live official advisory was active for this coordinate."
+    else:
+        if lang == "bn":
+            pfz_text_primary = "উপলব্ধ ফিশিং স্পট"
+            pfz_text_why = "এটি একটি উপলব্ধ স্পট।"
+        elif lang == "bn_en" or lang == "hi-Latn":
+            pfz_text_primary = "Available fishing spot"
+            pfz_text_why = "General available spot."
+        else:
+            pfz_text_primary = "Available fishing area"
+            pfz_text_why = "General fishing area."
+            
+    # 3. Environment & Safety
+    safety = top.get("safety_status", "UNKNOWN")
+    weather = top.get("weather_status", "UNKNOWN").upper()
+    depth = top.get("depth_m")
+    if depth:
+        depth_str = str(depth)
+        if not depth_str.endswith("m") and not depth_str.endswith("meters"):
+            depth_str += " m"
+    else:
+        depth_str = "Not provided by the advisory" if source == "INCOIS_LIVE" else "Unknown"
+    
+    if safety == "CLEARED":
+        safety_txt = "Cleared based on the available marine-safety checks"
+    elif safety == "DATA_UNAVAILABLE":
+        safety_txt = "Current safety could not be confirmed from available data"
+    else:
+        safety_txt = safety
+        
+    lat_val, lon_val = top.get("latitude", 0.0), top.get("longitude", 0.0)
+    
+    # 4. Constructing text
+    if lang == "bn":
+        text = f"🎯 প্রস্তাবিত ফিশিং এরিয়া\n\n"
+        text += f"{ref_loc_name} থেকে প্রায় {actual_dist:.1f} কিমি দূরে\n\n"
+        text += f"PFZ:\n{pfz_text_primary}\n\n"
+        text += f"গভীরতা:\n{depth_str}\n\n"
+        text += f"আবহাওয়া:\n{weather}\n\n"
+        text += f"নিরাপত্তা:\n{safety_txt}\n\n"
+        text += f"স্থানাঙ্ক:\n{lat_val:.2f}°N, {lon_val:.2f}°E\n\n"
+        
+        text += f"🧠 কেন এই এরিয়াটি বেছে নেওয়া হলো?\n\n"
+        text += f"দূরত্ব:\n{ref_loc_name} থেকে {actual_dist:.1f} কিমি দূরে"
+        if requested_dist_text:
+            text += f" — যা {requested_dist_text}।"
+        else:
+            text += "।"
+        text += f"\n\nমাছ পাওয়ার প্রমাণ:\n{pfz_text_why}\n\n"
+        text += f"নিরাপত্তা:\nবর্তমান সামুদ্রিক নিরাপত্তা চেক করা হয়েছে।\n"
+    elif lang == "bn_en":
+        text = f"🎯 Recommended Fishing Area\n\n"
+        text += f"{ref_loc_name} theke praye {actual_dist:.1f} km dure\n\n"
+        text += f"PFZ:\n{pfz_text_primary}\n\n"
+        text += f"Depth:\n{depth_str}\n\n"
+        text += f"Weather:\n{weather}\n\n"
+        text += f"Safety:\n{safety_txt}\n\n"
+        text += f"Coordinates:\n{lat_val:.2f}°N, {lon_val:.2f}°E\n\n"
+        
+        text += f"🧠 WHY THIS AREA\n\n"
+        text += f"Distance:\n{ref_loc_name} theke {actual_dist:.1f} km dure"
+        if requested_dist_text:
+            text += f" — ja {requested_dist_text}."
+        else:
+            text += "."
+        text += f"\n\nFishing evidence:\n{pfz_text_why}\n\n"
+        text += f"Safety:\nCurrent weather aar marine-safety check kora hoyeche.\n"
+    elif lang == "hi-Latn":
+        text = f"🎯 Recommended Fishing Area\n\n"
+        text += f"{ref_loc_name} se lagbhag {actual_dist:.1f} km door\n\n"
+        text += f"PFZ:\n{pfz_text_primary}\n\n"
+        text += f"Depth:\n{depth_str}\n\n"
+        text += f"Weather:\n{weather}\n\n"
+        text += f"Safety:\n{safety_txt}\n\n"
+        text += f"Coordinates:\n{lat_val:.2f}°N, {lon_val:.2f}°E\n\n"
+        
+        text += f"🧠 WHY THIS AREA\n\n"
+        text += f"Distance:\n{ref_loc_name} se {actual_dist:.1f} km door"
+        if requested_dist_text:
+            text += f" — jo {requested_dist_text}."
+        else:
+            text += "."
+        text += f"\n\nFishing evidence:\n{pfz_text_why}\n\n"
+        text += f"Safety:\nCurrent weather aur marine-safety check clear hain.\n"
+    else: # English
+        text = f"🎣 Recommended Fishing Area\n\n"
+        text += f"I found an official INCOIS Potential Fishing Zone approximately {actual_dist:.1f} km from {ref_loc_name}" if source == "INCOIS_LIVE" else f"I found a recommended fishing area approximately {actual_dist:.1f} km from {ref_loc_name}"
+        if requested_dist_text:
+            text += f", which closely matches your requested ~{req_dist:.0f} km distance.\n\n"
+        else:
+            text += ".\n\n"
+        text += f"PFZ:\n{pfz_text_primary}\n\n"
+        text += f"Depth:\n{depth_str}\n\n"
+        text += f"Weather:\n{weather.capitalize()}\n\n"
+        text += f"Safety:\n{safety_txt}\n\n"
+        text += f"Coordinates:\n{lat_val:.2f}°N, {lon_val:.2f}°E\n\n"
+        
+        text += f"🧠 WHY THIS AREA\n\n"
+        text += f"Distance:\n{actual_dist:.1f} km from {ref_loc_name}"
+        if requested_dist_text:
+            text += f" — a close match to your requested ~{req_dist:.0f} km."
+        else:
+            text += "."
+        text += f"\n\nFishing evidence:\n{pfz_text_why}\n\n"
+        text += f"Safety:\nCurrent weather and marine-safety checks are cleared.\n"
+        
+    return [(text, ["geospatial", "rules", "pfz"])]
+
 def _make_segments(parts: List[Tuple[str, List[str]]]) -> Tuple[str, List[Dict[str, Any]]]:
     segs = []
     text = ""
@@ -509,6 +682,124 @@ def generate_multilingual_response(recommendation_result: Dict[str, Any], langua
                 (f"with chlorophyll of {chlo} mg/m³ and SST of {sst}°C.", ["productivity", "ocean_state"])
             ])
 
+    if result_type == "ROUTE_RESULT":
+        start_name = recommendation_result.get("start_name", "Start")
+        dest_name = recommendation_result.get("dest_name", "Destination")
+        target_provenance = recommendation_result.get("target_provenance", "")
+        route_dist = recommendation_result.get("route_distance_km", 0.0)
+        direct_dist = recommendation_result.get("direct_distance_km", 0.0)
+        detour_km = recommendation_result.get("detour_km", 0.0)
+        safety = recommendation_result.get("safety_clearance", "UNKNOWN")
+        route_success = recommendation_result.get("action_code") == "ROUTE_GENERATED"
+        
+        if not route_success:
+            if lang == "bn" or lang == "bn-Latn":
+                segs = [(f"🧭 Safe Route: {start_name} → {dest_name}\n\nORCA kono safe route khuje payni. Destination hoyto block kora ache.", ["geospatial"])]
+            elif lang == "hi-Latn":
+                segs = [(f"🧭 Safe Route: {start_name} → {dest_name}\n\nORCA koi safe route nahi dhund paya. Destination block ho sakta hai.", ["geospatial"])]
+            else:
+                segs = [(f"🧭 Safe Route: {start_name} → {dest_name}\n\nORCA was unable to find a safe route between the specified origin and destination. The destination may be blocked by land or restricted zones.", ["geospatial"])]
+            return _make_segments(segs)
+
+        # Build strings based on language
+        if lang == "bn":
+            prov_text = ""
+            if target_provenance == "OFFICIAL_PFZ":
+                prov_text = "ORCA গন্তব্য হিসেবে একটি উপলব্ধ INCOIS PFZ বেছে নিয়েছে।\n\n"
+            elif target_provenance == "GENERATED_OFFSHORE_TARGET":
+                prov_text = f"ORCA {start_name} থেকে প্রায় নির্দেশিত দূরত্বের একটি অফশোর পয়েন্ট বেছে নিয়েছে।\n\n"
+            elif target_provenance == "EXISTING_FISHING_CANDIDATE":
+                prov_text = "ORCA একটি উপযুক্ত ফিশিং জোন বেছে নিয়েছে।\n\n"
+                
+            text = f"🧭 SAFE FISHING ROUTE\n\n"
+            text += f"Starting point: {start_name}\n"
+            text += f"Destination: {dest_name}\n\n"
+            text += f"Route distance: {route_dist:.1f} km\n"
+            text += f"Direct distance: {direct_dist:.1f} km\n"
+            text += f"Additional distance: {detour_km:.1f} km\n\n"
+            text += "ORCA শুধুমাত্র ছোট পথ অনুসরণ না করে উপলব্ধ নেভিগেশন সীমাবদ্ধতা এবং বেশি ঝুঁকির জায়গাগুলি বিবেচনা করে এই রুটটি বেছে নিয়েছে।\n\n"
+            text += prov_text
+            text += "Route status: Successfully planned.\n\n"
+            text += "Current marine conditions:\n"
+            text += ("এই মুহূর্তে ডেটা পাওয়া যাচ্ছে না।\n\n" if safety == "DATA_UNAVAILABLE" else "উপলব্ধ তথ্যের ভিত্তিতে সামুদ্রিক আবহাওয়া বিবেচনা করা হয়েছে।\n\n")
+            text += "Safety status:\n"
+            text += ("Current conditions unavailable — check updated marine/weather conditions before departure\n\n" if safety == "DATA_UNAVAILABLE" else "Current conditions factored into route plan\n\n")
+            text += "Yes. ORCA used A* to calculate the route. It compares possible paths while accounting for route constraints and additional navigation costs, then selects a feasible path to the destination.\n"
+            
+        elif lang == "bn-Latn":
+            prov_text = ""
+            if target_provenance == "OFFICIAL_PFZ":
+                prov_text = "ORCA destination hishebe ekta available INCOIS PFZ select koreche.\n\n"
+            elif target_provenance == "GENERATED_OFFSHORE_TARGET":
+                prov_text = f"ORCA {start_name} theke praye nirdeshito durotter ekta offshore point select koreche.\n\n"
+            elif target_provenance == "EXISTING_FISHING_CANDIDATE":
+                prov_text = "ORCA ekta upojukto fishing zone select koreche.\n\n"
+                
+            text = f"🧭 SAFE FISHING ROUTE\n\n"
+            text += f"Starting point: {start_name}\n"
+            text += f"Destination: {dest_name}\n\n"
+            text += f"Route distance: {route_dist:.1f} km\n"
+            text += f"Direct distance: {direct_dist:.1f} km\n"
+            text += f"Additional distance: {detour_km:.1f} km\n\n"
+            text += "ORCA shudhu shortest path na niye available navigation constraint aar higher-risk area consider kore ei route select koreche.\n\n"
+            text += prov_text
+            text += "Route status: Successfully planned.\n\n"
+            text += "Current marine conditions:\n"
+            text += ("Ekhon available nei.\n\n" if safety == "DATA_UNAVAILABLE" else "Available data onujayi condition consider kora hoyeche.\n\n")
+            text += "Safety status:\n"
+            text += ("Current conditions unavailable — check updated marine/weather conditions before departure\n\n" if safety == "DATA_UNAVAILABLE" else "Current conditions factored into route plan\n\n")
+            text += "Yes. ORCA used A* to calculate the route. It compares possible paths while accounting for route constraints and additional navigation costs, then selects a feasible path to the destination.\n"
+            
+        elif lang == "hi-Latn":
+            prov_text = ""
+            if target_provenance == "OFFICIAL_PFZ":
+                prov_text = "ORCA ne destination ke liye ek available INCOIS PFZ select kiya hai.\n\n"
+            elif target_provenance == "GENERATED_OFFSHORE_TARGET":
+                prov_text = f"ORCA ne {start_name} se lagbhag nirdeshit doori par ek offshore point select kiya hai.\n\n"
+            elif target_provenance == "EXISTING_FISHING_CANDIDATE":
+                prov_text = "ORCA ne ek suitable fishing zone select kiya hai.\n\n"
+                
+            text = f"🧭 SAFE FISHING ROUTE\n\n"
+            text += f"Starting point: {start_name}\n"
+            text += f"Destination: {dest_name}\n\n"
+            text += f"Route distance: {route_dist:.1f} km\n"
+            text += f"Direct distance: {direct_dist:.1f} km\n"
+            text += f"Additional distance: {detour_km:.1f} km\n\n"
+            text += "ORCA ne sirf shortest path nahi liya balki available navigation constraints aur higher-risk areas ko consider karke yeh route select kiya hai.\n\n"
+            text += prov_text
+            text += "Route status: Successfully planned.\n\n"
+            text += "Current marine conditions:\n"
+            text += ("Abhi available nahi hai.\n\n" if safety == "DATA_UNAVAILABLE" else "Available data ke mutabiq condition consider kiya gaya hai.\n\n")
+            text += "Safety status:\n"
+            text += ("Current conditions unavailable — check updated marine/weather conditions before departure\n\n" if safety == "DATA_UNAVAILABLE" else "Current conditions factored into route plan\n\n")
+            text += "Yes. ORCA used A* to calculate the route. It compares possible paths while accounting for route constraints and additional navigation costs, then selects a feasible path to the destination.\n"
+            
+        else: # English
+            prov_text = ""
+            if target_provenance == "OFFICIAL_PFZ":
+                prov_text = "ORCA selected an available INCOIS PFZ as the destination.\n\n"
+            elif target_provenance == "GENERATED_OFFSHORE_TARGET":
+                prov_text = f"ORCA selected an offshore point approximately {direct_dist:.1f} km from {start_name}.\n\n"
+            elif target_provenance == "EXISTING_FISHING_CANDIDATE":
+                prov_text = f"I found a fishing area approximately {direct_dist:.1f} km from {start_name}.\n\n"
+                
+            text = f"🧭 SAFE FISHING ROUTE\n\n"
+            text += f"Starting point: {start_name}\n"
+            text += f"Destination: {dest_name}\n\n"
+            text += f"Route distance: {route_dist:.1f} km\n"
+            text += f"Direct distance: {direct_dist:.1f} km\n"
+            text += f"Additional distance: {detour_km:.1f} km\n\n"
+            text += "ORCA selected this route by considering the available navigation constraints and higher-risk areas instead of simply following the shortest straight-line path.\n\n"
+            text += prov_text
+            text += "Route status: Successfully planned.\n\n"
+            text += "Current marine conditions:\n"
+            text += ("Data currently unavailable.\n\n" if safety == "DATA_UNAVAILABLE" else "Factored into route plan based on available data.\n\n")
+            text += "Safety status:\n"
+            text += ("Current conditions unavailable — check updated marine/weather conditions before departure\n\n" if safety == "DATA_UNAVAILABLE" else "Current conditions factored into route plan\n\n")
+            text += "Yes. ORCA used A* to calculate the route. Instead of simply following the shortest straight-line path, it compares possible paths while accounting for route constraints and additional navigation costs, then selects a feasible path to the destination.\n"
+
+        return _make_segments([(text, ["geospatial"])])
+
     action_code = recommendation_result.get("decision", recommendation_result.get("action_code", "CLEAR_WEATHER_LOW_YIELD"))
     pfz_summary = recommendation_result.get("pfz_summary", {})
     pfz_prob = pfz_summary.get("pfz_probability")
@@ -536,6 +827,10 @@ def generate_multilingual_response(recommendation_result: Dict[str, Any], langua
     if not nearest_coast:
         nearest_coast = recommendation_result.get("why", {}).get("nearest_coast_name", "Coast")
 
+    ranked_spots = recommendation_result.get("ranked_candidate_spots", [])
+    if ranked_spots and action_code not in ["CANCEL_VOYAGE", "UNSUPPORTED_LOCATION", "NEEDS_CLARIFICATION"]:
+        return _generate_fishing_candidate_response(recommendation_result, lang)
+
     templates = RESPONSE_TEMPLATES.get(action_code, RESPONSE_TEMPLATES.get("CLEAR_WEATHER_LOW_YIELD"))
     template_str = templates.get(lang, templates["en"])
 
@@ -548,39 +843,6 @@ def generate_multilingual_response(recommendation_result: Dict[str, Any], langua
         base_response = recommendation_result.get("recommendation_text", template_str)
         
     segs = [(base_response, ["rules"])]
-
-    # Append top-ranked fishing candidate spot information if candidate spots exist
-    ranked_spots = recommendation_result.get("ranked_candidate_spots", [])
-    if ranked_spots and action_code not in ["CANCEL_VOYAGE", "UNSUPPORTED_LOCATION", "NEEDS_CLARIFICATION"]:
-        spot_strings = []
-        for s in ranked_spots[:3]:
-            dist_km = s.get("distance_km", 0.0)
-            direction = s.get("compass_direction", "CENTER")
-            p = s.get("pfz_probability")
-            b_prob_pct = int(round((p if p is not None else 0.0) * 100))
-            rank = s.get("rank", 1)
-            if dist_km == 0.0 and direction == "CENTER":
-                continue
-            if lang == "bn":
-                spot_strings.append(f"স্পট #{rank}: {dist_km:.1f} কিমি {direction} ({b_prob_pct}%)")
-            elif lang == "bn_en":
-                spot_strings.append(f"Spot #{rank}: {dist_km:.1f} km {direction} ({b_prob_pct}%)")
-            elif lang == "hi-Latn":
-                spot_strings.append(f"Spot #{rank}: {dist_km:.1f} km {direction} ({b_prob_pct}%)")
-            else:
-                spot_strings.append(f"Spot #{rank}: {dist_km:.1f} km {direction} ({b_prob_pct}%)")
-
-        if spot_strings:
-            spot_text = ""
-            if lang == "bn":
-                spot_text = f" সেরা মাছের স্থান: {', '.join(spot_strings)}।"
-            elif lang == "bn_en":
-                spot_text = f" Top recommended spots: {', '.join(spot_strings)}."
-            elif lang == "hi-Latn":
-                spot_text = f" Sabse behtar spots: {', '.join(spot_strings)}."
-            else:
-                spot_text = f" Top recommended spots: {', '.join(spot_strings)}."
-            segs.append((spot_text, ["pfz", "geospatial", "rules"]))
 
     # Phase 3: Add 'why' explanations
     why_data = recommendation_result.get("why", {})
