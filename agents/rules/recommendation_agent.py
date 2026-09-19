@@ -657,6 +657,8 @@ class RecommendationAgent(BaseAgent):
                     reference_landmark=identity.reference_landmark,
                     distance_from_landmark_km=identity.distance_from_landmark_km,
                     bearing_from_landmark=identity.compass_direction,
+                    depth_m=spot.get("incois_depth_m_range", str(spot.get("depth_m"))) if spot.get("incois_depth_m_range") or spot.get("depth_m") else None,
+                    query_distance_km=spot.get("distance_km", 0.0),
                     pfz_probability=cand_pfz_prob,
                     pfz_present=cand_pfz_present,
                     pfz_signal_present=bool(cand_pfz_prob > 0) if cand_pfz_prob is not None else cand_pfz_present,

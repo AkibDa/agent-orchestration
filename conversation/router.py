@@ -90,6 +90,14 @@ def detect_special_operations(raw_query: str, extraction=None) -> str | None:
     if len(regions_found) >= 1 and has_origin_kw:
         return "SELECT_BEST_FISHING_OPTION"
 
+    route_kws = [
+        "safest route", "safe route", "route for a vessel", "navigate", "safe navigation", "route",
+        "raasta", "marg", "रास्ता", "मार्ग", "रूट", "सुरक्षित रास्ता", # Hindi/Hinglish
+        "rasta", "poth", "রাস্তা", "পথ", "নিরাপদ রুট" # Bengali/Benglish
+    ]
+    if any(kw in q_low for kw in route_kws):
+        return "ROUTE_TO_FISHING_AREA"
+
     if "nearest" in q_low and "pfz" in q_low:
         return "NEAREST_PFZ_SEARCH"
 
@@ -103,14 +111,6 @@ def detect_special_operations(raw_query: str, extraction=None) -> str | None:
     search_spot_kws = ["which area", "which spot", "which location", "where to fish", "choose area", "best area", "fishing spot", "which zone", "best spot", "where should", "which fishing area"]
     if any(kw in q_low for kw in search_spot_kws) or (has_comp_kw and locs_count <= 1):
         return "FIND_FISHING_SPOTS"
-
-    route_kws = [
-        "safest route", "safe route", "route for a vessel", "navigate", "safe navigation", "route",
-        "raasta", "marg", "रास्ता", "मार्ग", "रूट", "सुरक्षित रास्ता", # Hindi/Hinglish
-        "rasta", "poth", "রাস্তা", "পথ", "নিরাপদ রুট" # Bengali/Benglish
-    ]
-    if any(kw in q_low for kw in route_kws):
-        return "ROUTE_TO_FISHING_AREA"
 
     has_env_kw = any(kw in q_low for kw in ["chlorophyll", "sst", "temperature", "tapmatra", "tapman"])
     print(f"DEBUG: q_low={q_low}, has_env_kw={has_env_kw}")
@@ -275,7 +275,7 @@ def build_query_plan(raw_query: str, extraction: ExtractionResult, extract_locat
           inland_name = res.inland_name
           
           # If inland location extracted for coastal operations, reject it.
-          if loc_type == "inland":
+          if loc_type == "inland" and extraction.intent.value != "safe_route":
               # We clear it so it gets picked up as MISSING_LOCATION and triggers a clarification
               loc = None
               tgt_loc = None
@@ -289,6 +289,10 @@ def build_query_plan(raw_query: str, extraction: ExtractionResult, extract_locat
               loc_type = res_ref.location_type
               inland_name = res_ref.inland_name
               res = res_ref
+              
+          if loc_type == "inland" and extraction.intent.value != "safe_route":
+              loc = None
+              ref_loc = None
 
   candidate_locs = getattr(res, "candidate_names", [])
   ext_period = getattr(extraction, "time_period", None)
@@ -332,7 +336,10 @@ def build_query_plan(raw_query: str, extraction: ExtractionResult, extract_locat
         elif current_intent in ("nearest_pfz", "pfz_search"):
           op = "NEAREST_PFZ_SEARCH" if current_intent == "nearest_pfz" else "FIND_FISHING_SPOTS"
         elif current_intent == "fishing_zone_analysis":
-          op = "COMPARE_FISHING_REGIONS"
+          if len(compare_locations) >= 2 or (target_text and " vs " in raw_query.lower()):
+              op = "COMPARE_FISHING_REGIONS"
+          else:
+              op = "FIND_FISHING_SPOTS"
         elif current_intent == "productivity_analysis":
           op = "FIND_FISHING_SPOTS"
         elif current_intent == "hazardous_zone_filter":
@@ -379,39 +386,45 @@ def build_query_plan(raw_query: str, extraction: ExtractionResult, extract_locat
                       loc = ref_loc # Base operations from origin
                       break
 
+  semantic_target_obj = None
+  if target_text and not tgt_loc:
+      from conversation.semantic_target import parse_semantic_target
+      semantic_target_obj = parse_semantic_target(target_text, spatial_c)
+
   return QueryPlan(
-    query=raw_query,
-    intent=extraction.intent.value,
-    operation=op,
-    action_type=act_type,
-    result_type=res_type,
-    language=trusted_lang,
-    location=loc,
-    reference_location=ref_loc,
-    target_location=tgt_loc,
-    spatial_constraint=spatial_c,
-    location_required=loc_req,
-    location_type=loc_type,
-    location_role=loc_role,
-    locations=locations_list,
-    inland_name=inland_name,
-    candidate_locations=candidate_locs,
-    time=QueryTime(
-      relative=rel_time,
-      offset_days=offset_days,
-      hour=q_hour,
-      minute=q_min,
-      period=q_period or (None if extraction.time_period == "none" else extraction.time_period),
-    ),
-    activity=None if extraction.activity == "none" else extraction.activity,
-    user_constraint=user_const,
-    agents=OPERATION_AGENTS.get(op, INTENT_AGENTS.get(extraction.intent.value, [])),
-    dependencies=[],
-    constraints=[{"type": "max_risk", "value": "MEDIUM"}],
-    count=ext_count,
-    compare_locations=compare_locations,
-    explanation_target=getattr(extraction, "explanation_target", None)
-  )
+      query=raw_query,
+      intent=extraction.intent.value,
+      operation=op,
+      action_type=act_type,
+      result_type=res_type,
+      language=trusted_lang,
+      location=loc,
+      reference_location=ref_loc,
+      target_location=tgt_loc,
+      semantic_target=semantic_target_obj,
+      spatial_constraint=spatial_c,
+      location_required=loc_req,
+      location_type=loc_type,
+      location_role=loc_role,
+      locations=locations_list,
+      inland_name=inland_name,
+      candidate_locations=candidate_locs,
+      time=QueryTime(
+        relative=rel_time,
+        offset_days=offset_days,
+        hour=q_hour,
+        minute=q_min,
+        period=q_period or (None if extraction.time_period == "none" else extraction.time_period),
+      ),
+      activity=None if extraction.activity == "none" else extraction.activity,
+      user_constraint=user_const,
+      agents=OPERATION_AGENTS.get(op, INTENT_AGENTS.get(extraction.intent.value, [])),
+      dependencies=[],
+      constraints=[{"type": "max_risk", "value": "MEDIUM"}],
+      count=ext_count,
+      compare_locations=compare_locations,
+      explanation_target=getattr(extraction, "explanation_target", None)
+    )
 
 
 def resolve_action(result: ExtractionResult, plan: QueryPlan) -> str:
@@ -442,14 +455,16 @@ def resolve_action(result: ExtractionResult, plan: QueryPlan) -> str:
     return "ORCA_QUERY"
 
   if plan.operation == "ROUTE_TO_FISHING_AREA":
-      if not plan.target_location:
-          plan.clarification_reason = "MISSING_DESTINATION"
-          plan.readiness_status = "NEED_DESTINATION"
-          return "CLARIFY"
       if not plan.location and not plan.reference_location:
           plan.clarification_reason = "MISSING_ORIGIN"
           plan.readiness_status = "NEED_ORIGIN"
           return "CLARIFY"
+          
+      if not plan.target_location and not plan.semantic_target and not plan.spatial_constraint:
+          plan.clarification_reason = "MISSING_DESTINATION"
+          plan.readiness_status = "NEED_DESTINATION"
+          return "CLARIFY"
+          
       plan.readiness_status = "CAN_EXECUTE"
       return "ORCA_QUERY"
 
